@@ -62,3 +62,24 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* Partner constellation float — chips drift gently up/down.
+ *
+ * IMPORTANT: each chip's static scale is exposed as the CSS custom
+ * property `--chip-scale` (set inline in OurWorkPage). Because this
+ * keyframe sets `transform`, it would otherwise clobber any inline
+ * `transform: scale(...)` on the same element. By reading the scale
+ * from the variable inside the keyframe we keep the per-chip size
+ * variation while still animating translateY. */
+@keyframes partnerFloat {
+  0%, 100% {
+    transform: translateY(0) scale(var(--chip-scale, 1));
+  }
+  50% {
+    transform: translateY(-8px) scale(var(--chip-scale, 1));
+  }
+}
+
+.partner-float {
+  animation: partnerFloat 6s ease-in-out infinite;
+}

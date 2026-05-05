@@ -1,318 +1,533 @@
 import React, { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import CustomGlobe from './components/CustomGlobe';
-import { ArrowUpRight, ArrowDown, Menu, X, ChevronRight } from 'lucide-react';
+import AboutPage from './components/AboutPage';
+import OurWorkPage from './components/OurWorkPage';
+import WorkWithUsPage from './components/WorkWithUsPage';
+import { ArrowUpRight, ArrowDown, Menu, X, ChevronRight, Mail, Linkedin, Instagram } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+import { fixedLayerStyle, normalize, useScrollPhases } from './utils/scroll';
+import {
+  CONTACT_EMAIL,
+  DONATE_URL,
+  INSTAGRAM_URL,
+  LINKEDIN_URL,
+} from './utils/links';
 
+/* ------------------------------------------------------------------
+ * PDF.js worker setup — required so pdf.js can render the annual
+ * report cover thumbnail on the main page (without this, getDocument
+ * hangs because it can't find its worker file).
+ * ------------------------------------------------------------------ */
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
+/* FlipBook is heavy (pdf.js + react-pageflip) — lazy load so it
+ * doesn't block the initial render. It's only used inside the
+ * fullscreen annual-report modal. */
 const FlipBook = lazy(() => import('./components/FlipBook'));
 
 const HERO_BACKGROUND = '#F6F5F4';
+type SiteView = 'home' | 'about' | 'work' | 'engage';
+
+/* Top-nav configuration. Every item is now wired to a view. */
+const NAV_ITEMS: { label: string; view?: SiteView }[] = [
+  { label: 'About Us', view: 'about' },
+  { label: 'Our Work', view: 'work' },
+  { label: 'Work With Us', view: 'engage' },
+];
+
+const resolveViewFromHash = (): SiteView => {
+  if (typeof window === 'undefined') return 'home';
+  const normalized = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  if (normalized === 'about') return 'about';
+  if (normalized === 'work') return 'work';
+  if (normalized === 'engage') return 'engage';
+  return 'home';
+};
 
 const App: React.FC = () => {
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [scrollPhase2, setScrollPhase2] = useState(0);
-  const [scrollPhase3, setScrollPhase3] = useState(0);
-  const [scrollPhase4, setScrollPhase4] = useState(0);
+  /* ================================================================
+   * SCROLL-DRIVEN ANIMATION STATE
+   *
+   * The page is a single tall scroll container (1100vh). Five visual
+   * "sections" are stacked as fixed-position layers, and we fade /
+   * translate between them as the user scrolls.
+   *
+   * Each of the 4 transitions runs over 1.5vh of scroll, preceded
+   * by a 1vh "hold" where the current section sits fully visible —
+   * matching `useScrollPhases`'s defaults. Five sections need four
+   * transitions:
+   *
+   *   scrollProgress  → Hero text → Globe + compact header
+   *   scrollPhase2    → Globe → Who We Are
+   *   scrollPhase3    → Who We Are → Projects
+   *   scrollPhase4    → Projects → Get Involved
+   * ================================================================ */
+  const [scrollProgress, scrollPhase2, scrollPhase3, scrollPhase4] =
+    useScrollPhases(4);
+
+  /* UI state unrelated to scroll */
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoLoadError, setLogoLoadError] = useState(false);
   const [navHeight, setNavHeight] = useState(96);
+
+  /* Annual report state: coverUrl is the rendered first-page
+   * thumbnail; showFlipBook gates mounting the heavy FlipBook
+   * component; reportOpen controls the fullscreen modal. */
+  const [showFlipBook, setShowFlipBook] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [coverUrl, setCoverUrl] = useState<string>('');
+
+  /* DOM refs — used for measuring nav height and for triggering
+   * stagger-in animations via IntersectionObserver / effects. */
   const navRef = useRef<HTMLDivElement | null>(null);
   const whoSectionRef = useRef<HTMLDivElement | null>(null);
   const reportSectionRef = useRef<HTMLDivElement | null>(null);
   const projectsSectionRef = useRef<HTMLDivElement | null>(null);
-  const [showFlipBook, setShowFlipBook] = useState(false);
-  const navItems = ['About Us', 'Our Work', 'Work With Us'];
 
+  const [currentView, setCurrentView] = useState<SiteView>(resolveViewFromHash);
+  const whoCards = [
+    { line1: 'Product', line2: 'Designers', img: '/design.JPG', rotate: -8, offsetX: '-55%', zIndex: 1 },
+    { line1: 'Software', line2: 'Developers', img: '/dev.JPG', rotate: 0, offsetX: '0%', zIndex: 3 },
+    { line1: 'Business', line2: 'Members', img: '/business.jpg', rotate: 8, offsetX: '55%', zIndex: 1 },
+  ];
+
+  const goToView = (view: SiteView) => {
+    if (typeof window === 'undefined') return;
+    const nextHash = view === 'home' ? '#/' : `#/${view}`;
+    if (window.location.hash !== nextHash) window.location.hash = nextHash;
+    setCurrentView(view);
+    setMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  /* ----------------------------------------------------------------
+   * Render the annual report cover (PDF page 1) to a data URL so it
+   * can be shown as a thumbnail inside the Get Involved card.
+   * ---------------------------------------------------------------- */
   useEffect(() => {
-    const handleScroll = () => {
-      // Transition completes after scrolling 1 viewport height
-      const transitionHeight = window.innerHeight;
-      const currentScroll = window.scrollY;
-      // Clamp between 0 and 1
-      const progress = Math.min(Math.max(currentScroll / transitionHeight, 0), 1);
-      setScrollProgress(progress);
-      // Phase 2: globe stays fully visible until 2vh, then transitions over 1.5vh
-      setScrollPhase2(Math.min(Math.max((currentScroll - transitionHeight * 2) / (transitionHeight * 1.5), 0), 1));
-      // Phase 3: who we are fades out, projects fades in
-      setScrollPhase3(Math.min(Math.max((currentScroll - transitionHeight * 4.5) / (transitionHeight * 1.5), 0), 1));
-      // Phase 4: projects fades out, annual report fades in
-      setScrollPhase4(Math.min(Math.max((currentScroll - transitionHeight * 7) / (transitionHeight * 1.5), 0), 1));
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    let cancelled = false;
+    (async () => {
+      try {
+        const pdf = await pdfjsLib.getDocument('/AnnualReport.pdf').promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d')!;
+        await page.render({ canvasContext: ctx, viewport, canvas } as any).promise;
+        if (!cancelled) setCoverUrl(canvas.toDataURL('image/jpeg', 0.85));
+      } catch {
+        /* cover thumbnail is non-critical; fall back to "Loading…" text */
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
+  /* ----------------------------------------------------------------
+   * When the fullscreen report modal opens, lock body scroll and
+   * close on Escape. Restores both on unmount / close.
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    if (!reportOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setReportOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [reportOpen]);
+
+  /* The scroll listener is handled by `useScrollPhases` above; the
+   * four phase values are derived from window.scrollY according to
+   * the standard 1vh hold + 1.5vh transition pattern. */
+
+  /* ----------------------------------------------------------------
+   * Track the nav height so fixed-position sections can offset their
+   * content below it. Uses ResizeObserver because the nav can grow
+   * (mobile menu) and shrink.
+   * ---------------------------------------------------------------- */
   useEffect(() => {
     const updateNavHeight = () => {
-      if (navRef.current) {
-        setNavHeight(navRef.current.getBoundingClientRect().height);
-      }
+      if (navRef.current) setNavHeight(navRef.current.getBoundingClientRect().height);
     };
-
     updateNavHeight();
     window.addEventListener('resize', updateNavHeight);
-
-    const observer = new ResizeObserver(() => updateNavHeight());
+    const observer = new ResizeObserver(updateNavHeight);
     if (navRef.current) observer.observe(navRef.current);
-
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', updateNavHeight);
     };
   }, []);
 
+  /* Auto-close the mobile menu when the viewport grows to desktop. */
   useEffect(() => {
-    const closeMobileMenuOnDesktop = () => {
-      if (window.innerWidth >= 768) setMobileMenuOpen(false);
-    };
-
-    window.addEventListener('resize', closeMobileMenuOnDesktop);
-    return () => window.removeEventListener('resize', closeMobileMenuOnDesktop);
+    const onResize = () => { if (window.innerWidth >= 768) setMobileMenuOpen(false); };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   useEffect(() => {
-    const section = whoSectionRef.current;
-    if (!section) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const els = section.querySelectorAll('.who-we-are-title, .who-card');
-            els.forEach((el, i) => {
-              setTimeout(() => el.classList.add('visible'), i * 150);
-            });
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
-    observer.observe(section);
-    return () => observer.disconnect();
+    const onHashChange = () => setCurrentView(resolveViewFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Animation values derived from scroll progress
-  
-  // Globe Translation:
-  // Keep the initial position similar, but keep the scrolled position lower
-  // so text sits clearly above the globe.
+
+  /* ================================================================
+   * DERIVED ANIMATION VALUES
+   *
+   * All of these are pure functions of the four scroll phases above.
+   * Keeping them here (rather than inline in JSX) documents the
+   * intent and makes the JSX readable.
+   * ================================================================ */
+
+  // Globe translateY (vh): starts low under the hero text, slides up
+  // to sit centered behind the compact header as phase 1 completes.
   const globeStartY = 35;
   const globeEndY = 16;
-  const globeTranslateY = globeStartY - (scrollProgress * (globeStartY - globeEndY));
-  
-  // Hero text opacity:
-  // Visible at start (1), fades out quickly as you scroll.
-  // Gone by 50% of the transition.
+  const globeTranslateY = globeStartY - scrollProgress * (globeStartY - globeEndY);
+
+  // Hero text: full opacity at start, gone by halfway through phase 1.
   const heroOpacity = Math.max(1 - scrollProgress * 2, 0);
-  
-  // Header text opacity:
-  // Invisible at start, fades in after 50% of the transition.
+  // Compact header: mirror image — fades in during the second half of phase 1.
   const headerOpacity = Math.max((scrollProgress - 0.5) * 2, 0);
 
-  // Scroll Indicator Opacity
-  // Fades out as you scroll down
-  const scrollIndicatorOpacity = Math.max(1 - scrollProgress * 3, 0);
-  // Phase 2: globe fades out slowly, who we are fades in after
+  // Phase 2 — globe shrinks and fades as Who We Are slides in.
   const globeContentOpacity = Math.max(1 - scrollPhase2 * 1.5, 0);
   const globeScale = 1 - scrollPhase2 * 0.15;
-  const whoWeAreRaw = Math.max((scrollPhase2 - 0.55) * 2.5, 0);
-  const whoWeAreOpacity = Math.min(whoWeAreRaw, 1);
+  const whoWeAreOpacity = Math.min(Math.max((scrollPhase2 - 0.55) * 2.5, 0), 1);
   const whoWeAreTranslateY = Math.max(30 - whoWeAreOpacity * 30, 0);
 
-  // Re-appear after the globe settles so users know to keep scrolling.
+  // Scroll indicators. First arrow fades with phase 1; second arrow
+  // re-appears briefly once the globe has settled, to hint that
+  // there's more below.
+  const scrollIndicatorOpacity = Math.max(1 - scrollProgress * 3, 0);
   const postGlobeArrowOpacity = scrollPhase2 === 0 ? Math.max((scrollProgress - 0.78) * 4.5, 0) : 0;
-  const contentTopPadding = Math.max(navHeight + 24, 120);
-  const compactHeaderTop = navHeight + 36;
 
-  // Phase 3: who we are fades out, projects fades in
-  const whoWeAreFadeOut = Math.max(1 - scrollPhase3 * 1.5, 0);
-  const projectsRaw = Math.max((scrollPhase3 - 0.45) * 2.5, 0);
-  const projectsOpacity = Math.min(projectsRaw, 1);
+  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
+  const navTopOffset = isMobileViewport ? 8 : 12; // matches `top-2 md:top-3`
+  const navClearance = navHeight + navTopOffset;
+
+  // Padding offsets so fixed section content clears the full nav area.
+  const contentTopPadding = Math.max(navClearance + 24, 120);
+  const compactHeaderTop = navClearance + 36;
+
+  // Phase 3 — Who We Are hands off to Projects without overlap.
+  const whoWeAreFadeOut = 1 - normalize(scrollPhase3, 0.1, 0.58);
+  const projectsOpacity = normalize(scrollPhase3, 0.58, 0.95);
   const projectsTranslateY = Math.max(30 - projectsOpacity * 30, 0);
 
-  // Phase 4: projects fades out, annual report fades in
-  const projectsFadeOut = Math.max(1 - scrollPhase4 * 1.5, 0);
-  const reportRaw = Math.max((scrollPhase4 - 0.45) * 2.5, 0);
-  const reportOpacity = Math.min(reportRaw, 1);
+  // Phase 4 — Projects hands off to Get Involved without overlap.
+  const projectsFadeOut = 1 - normalize(scrollPhase4, 0.1, 0.58);
+  const reportOpacity = normalize(scrollPhase4, 0.58, 0.95);
   const reportTranslateY = Math.max(30 - reportOpacity * 30, 0);
+  const whoLayerOpacity = whoWeAreOpacity * whoWeAreFadeOut;
+  const projectsLayerOpacity = projectsOpacity * projectsFadeOut;
+  const reportLayerOpacity = reportOpacity;
+  const projectsIsSettled =
+    projectsLayerOpacity >= 0.99 &&
+    whoLayerOpacity <= 0.01 &&
+    reportLayerOpacity <= 0.01 &&
+    scrollPhase3 >= 0.99 &&
+    scrollPhase4 <= 0.01;
+  const reportIsSettled =
+    reportLayerOpacity >= 0.99 &&
+    projectsLayerOpacity <= 0.01 &&
+    scrollPhase4 >= 0.99;
+  const projectsInteractive = isMobileViewport ? projectsIsSettled : projectsLayerOpacity > 0.1;
+  const reportInteractive = isMobileViewport ? reportIsSettled : reportLayerOpacity > 0.1;
 
+  // Mobile sections need extra breathing room below the fixed nav so
+  // large headings/cards never touch the header area.
+  const projectsTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
+  const reportTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
+  const projectsBottomPadding = isMobileViewport ? 'calc(96px + env(safe-area-inset-bottom))' : '48px';
+
+  /* ----------------------------------------------------------------
+   * Lazy-mount the FlipBook once the Get Involved section starts to
+   * appear, and stagger-in the section's internal elements.
+   * ---------------------------------------------------------------- */
   useEffect(() => {
-    if (reportOpacity > 0.1 && !showFlipBook) {
-      setShowFlipBook(true);
-    }
+    if (reportOpacity > 0.1 && !showFlipBook) setShowFlipBook(true);
     if (reportOpacity > 0.3 && reportSectionRef.current) {
       const els = reportSectionRef.current.querySelectorAll('.annual-report-section');
-      els.forEach((el, i) => {
-        setTimeout(() => el.classList.add('visible'), i * 200);
-      });
+      els.forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 200));
     }
   }, [reportOpacity, showFlipBook]);
 
+  /* Stagger-in for Projects cards once the section is visible. */
   useEffect(() => {
     if (projectsOpacity > 0.3 && projectsSectionRef.current) {
       const els = projectsSectionRef.current.querySelectorAll('.project-card-animate');
-      els.forEach((el, i) => {
-        setTimeout(() => el.classList.add('visible'), i * 150);
-      });
+      els.forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 150));
     }
   }, [projectsOpacity]);
 
-  return (
-    <div className="relative w-full min-h-[1100vh] bg-[#F6F5F4]">
-      
-      {/* Fixed Background Layer with Globe */}
-      <div className="fixed inset-0 z-10 pointer-events-none" style={{ background: HERO_BACKGROUND, visibility: globeContentOpacity <= 0 ? 'hidden' : undefined }}>
+  /* ----------------------------------------------------------------
+   * Stagger-in animation for the Who We Are section.
+   *
+   * Previously this used IntersectionObserver, but on a fixed-
+   * positioned, initially `visibility: hidden` layer the IO callback
+   * didn't always fire (browser/timing dependent). When it didn't,
+   * the inner `.who-we-are-title` and `.who-card` elements stayed at
+   * opacity 0 forever — so the layer would fade in via scroll but
+   * its contents never appeared.
+   *
+   * We now match the same scroll-progress trigger that Projects and
+   * Get Involved use: as soon as the section's opacity ramps up,
+   * stagger in the .visible class. classList.add is idempotent so
+   * back-and-forth scrolling is safe.
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    if (whoWeAreOpacity > 0.3 && whoSectionRef.current) {
+      const els = whoSectionRef.current.querySelectorAll('.who-we-are-title, .who-card');
+      els.forEach((el, i) => setTimeout(() => el.classList.add('visible'), i * 150));
+    }
+  }, [whoWeAreOpacity]);
 
-        {/* Globe Container - Translates up based on scroll */}
-        {/* Added pointer-events-auto so the globe can be spun by the user */}
+  return (
+    /* The page is one tall scroll container (1100vh) with every
+     * visual section stacked as a fixed layer. Scrolling drives the
+     * phase values above, which in turn animate opacity / transform
+     * on those layers. */
+    <div className="relative w-full bg-[#F6F5F4]">
+
+      {/* ============================================================
+          TOP NAVIGATION — always visible, sits above every section.
+          Collapses to a hamburger menu below md.
+          ============================================================ */}
+      <div className="fixed top-2 md:top-3 left-0 w-full z-40 px-3 md:px-6 pointer-events-auto">
+        <nav ref={navRef} className="mx-auto w-full max-w-6xl rounded-xl border border-slate-200/80 bg-[#F6F5F4]/95 backdrop-blur-md shadow-sm md:rounded-none md:border-transparent md:bg-transparent md:backdrop-blur-0 md:shadow-none">
+          <div className="flex items-center justify-between gap-4 px-2 py-2 md:px-2 md:py-3">
+            {/* Logo — clickable, returns to home. Falls back to a
+                text wordmark if the image 404s. */}
+            <button
+              type="button"
+              onClick={() => goToView('home')}
+              className="flex items-center min-w-0 cursor-pointer"
+              aria-label="Go to home"
+            >
+              {!logoLoadError ? (
+                <img
+                  src="/image.png"
+                  alt="Logo"
+                  className="h-8 md:h-9 w-auto max-w-[180px] md:max-w-[260px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+                  onError={() => setLogoLoadError(true)}
+                />
+              ) : (
+                <span className="text-slate-800 text-xl md:text-2xl font-semibold tracking-tight">
+                  cornell hack4impact
+                </span>
+              )}
+            </button>
+
+            {/* Desktop links */}
+            <div className="hidden md:flex items-center gap-8">
+              {NAV_ITEMS.map((item) => {
+                const className = 'text-slate-700 text-sm font-semibold tracking-wide hover:text-slate-900 transition-colors';
+                if (item.view) {
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => goToView(item.view!)}
+                      className={`${className} cursor-pointer bg-transparent border-0 p-0`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                }
+                return (
+                  <a key={item.label} href="#" className={className}>
+                    {item.label}
+                  </a>
+                );
+              })}
+            </div>
+
+            {/* Mobile hamburger toggle */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              className="md:hidden flex h-10 w-10 items-center justify-center border border-slate-300 text-slate-700"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
+
+          {/* Mobile drawer — height animates via max-h. Items are
+              full-width tappable rows with subtle dividers and a
+              chevron on the right, matching the rest of the site's
+              visual language. */}
+          <div className={`md:hidden overflow-hidden transition-all duration-300 ease-out ${mobileMenuOpen ? 'max-h-72 opacity-100 pb-2' : 'max-h-0 opacity-0'}`}>
+            <div className="mt-1 border-t border-slate-200/80 divide-y divide-slate-200/70">
+              {NAV_ITEMS.map((item) => {
+                const className =
+                  'w-full flex items-center justify-between gap-3 px-3 py-3.5 text-slate-700 text-[15px] font-semibold tracking-wide hover:bg-slate-100/60 active:bg-slate-100 transition-colors';
+                const content = (
+                  <>
+                    <span>{item.label}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </>
+                );
+                if (item.view) {
+                  return (
+                    <button
+                      key={`mobile-${item.label}`}
+                      type="button"
+                      onClick={() => goToView(item.view!)}
+                      className={`${className} cursor-pointer bg-transparent border-0`}
+                    >
+                      {content}
+                    </button>
+                  );
+                }
+                return (
+                  <a key={`mobile-${item.label}`} href="#" className={className}>
+                    {content}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      {/* ============================================================
+          HOME VIEW — single tall scroll container (1100vh) with each
+          section stacked as a fixed layer. Only mounted when the
+          user is on the home route.
+          ============================================================ */}
+      {currentView === 'home' && (
+      <div className="relative w-full min-h-[1100vh]">
+
+      {/* ============================================================
+          GLOBE BACKGROUND LAYER
+          Fixed full-screen layer containing the interactive globe.
+          Hidden once it has fully faded (phase 2 complete) so it
+          doesn't capture pointer events over later sections.
+          ============================================================ */}
+      <div
+        className="fixed inset-0 z-10 pointer-events-none"
+        style={{ background: HERO_BACKGROUND, visibility: globeContentOpacity <= 0 ? 'hidden' : undefined }}
+      >
+        {/* pointer-events-auto lets the user drag to spin the globe. */}
         <div
           className="absolute inset-0 z-10 will-change-transform flex items-center justify-center pointer-events-auto"
           style={{ transform: `translateY(${globeTranslateY}vh) scale(${globeScale})`, opacity: globeContentOpacity }}
         >
           <CustomGlobe scrollProgress={scrollProgress} />
         </div>
-
       </div>
 
-      {/* Persistent Top Navigation */}
-      <div className="fixed top-2 md:top-3 left-0 w-full z-40 px-3 md:px-6 pointer-events-auto">
-        <nav ref={navRef} className="mx-auto w-full max-w-6xl">
-          <div>
-            <div className="flex items-center justify-between gap-4 px-1 py-2 md:px-2 md:py-3">
-              <div className="flex items-center min-w-0">
-                {!logoLoadError ? (
-                  <img
-                    src="/image.png"
-                    alt="Logo"
-                    className="h-8 md:h-9 w-auto max-w-[180px] md:max-w-[260px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
-                    onError={() => setLogoLoadError(true)}
-                  />
-                ) : (
-                  <span className="text-slate-800 text-xl md:text-2xl font-semibold tracking-tight">
-                    cornell hack4impact
-                  </span>
-                )}
-              </div>
-
-              <div className="hidden md:flex items-center gap-8">
-                {navItems.map((item) => (
-                  <a
-                    key={item}
-                    href="#"
-                    className="text-slate-700 text-sm font-semibold tracking-wide hover:text-slate-900 transition-colors"
-                  >
-                    {item}
-                  </a>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((prev) => !prev)}
-                className="md:hidden flex h-10 w-10 items-center justify-center border border-slate-300 text-slate-700"
-                aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-                aria-expanded={mobileMenuOpen}
-              >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </button>
-            </div>
-
-            <div
-              className={`md:hidden overflow-hidden transition-all duration-300 ease-out ${mobileMenuOpen ? 'max-h-72 opacity-100 pb-4' : 'max-h-0 opacity-0'}`}
-            >
-              <div className="pt-2 grid grid-cols-1 gap-2">
-                {navItems.map((item) => (
-                  <a
-                    key={`mobile-${item}`}
-                    href="#"
-                    className="text-slate-700 text-sm font-medium tracking-wide py-1"
-                  >
-                    {item}
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </nav>
-      </div>
-
-      {/* Fixed Header Layer (Visible after scroll) */}
-      <div 
+      {/* ============================================================
+          SECTION 1 (compact header) — appears during the second half
+          of phase 1 as the big hero title fades away. Multiplied by
+          globeContentOpacity so it fades with the globe in phase 2.
+          ============================================================ */}
+      <div
         className="fixed left-0 w-full px-4 md:px-8 z-30 flex flex-col items-center justify-start pointer-events-none transition-opacity duration-300"
         style={{ opacity: headerOpacity * globeContentOpacity, top: `${compactHeaderTop}px` }}
       >
-        <h2 className="text-[#17558E] text-3xl md:text-4xl font-medium text-center leading-tight tracking-wide">
-          Tech For Social Good. <br />
-          Built by Students.
+        <h2 className="text-[#17558E] font-medium text-center leading-tight">
+          <span className="block text-2xl md:text-3xl tracking-wide">
+            Tech For Social Good.
+          </span>
+          <span
+            className="block text-3xl md:text-4xl italic tracking-tight mt-1"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Built by Students.
+          </span>
         </h2>
       </div>
 
-      {/* Hero Content Layer (Fades out on scroll) */}
-      <div 
+      {/* ============================================================
+          SECTION 1 (hero title) — large landing copy. Fades out
+          during phase 1. Pointer events disabled when invisible so
+          clicks pass through to the globe layer.
+          ============================================================ */}
+      <div
         className="fixed inset-0 z-20 flex flex-col items-center justify-start text-center px-4"
-        style={{ 
+        style={{
           opacity: heroOpacity,
           paddingTop: `${contentTopPadding}px`,
-          // Disable pointer events when invisible so it doesn't block the globe
-          pointerEvents: heroOpacity <= 0 ? 'none' : 'auto' 
+          pointerEvents: heroOpacity <= 0 ? 'none' : 'auto',
         }}
       >
-        {/* Main Title */}
         <div className="mb-6">
           <h1 className="text-[clamp(1.35rem,7.2vw,4.4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-tight whitespace-nowrap">
-          Tech For Social Good.
+            Tech For Social Good.
           </h1>
-          <h1 className="text-[clamp(1.55rem,8vw,4.4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-tight mt-2 whitespace-nowrap">
-          Built by Students.
+          <h1
+            className="text-[clamp(1.55rem,8vw,4.4rem)] md:text-7xl font-medium text-[#17558E] leading-tight mt-1 md:mt-2 whitespace-nowrap italic tracking-tight"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Built by Students.
           </h1>
         </div>
 
-        {/* Subtitle / Description */}
         <p className="text-slate-500 max-w-3xl text-sm md:text-base leading-relaxed mb-8 font-light -mt-1">
-        Building socially impactful tools to empower you to focus on what really matters. 
+          Building socially impactful tools to empower you to focus on what really matters.
         </p>
 
-        {/* Action Button */}
-        <button className="group flex items-center gap-2 px-8 py-3 rounded-full bg-white/60 border border-white/80 text-slate-700 hover:bg-white/80 transition-all duration-300 backdrop-blur-md cursor-pointer shadow-sm">
+        <button
+          type="button"
+          onClick={() => goToView('work')}
+          className="group flex items-center gap-2 px-8 py-3 rounded-full bg-white/60 border border-white/80 text-slate-700 hover:bg-white/80 transition-all duration-300 backdrop-blur-md cursor-pointer shadow-sm"
+        >
           <span className="text-base md:text-lg font-light tracking-wide">See Our Work</span>
           <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
         </button>
       </div>
 
-      {/* Bottom Scroll Indicator (Fades out) */}
-      <div 
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none"
-        style={{ opacity: scrollIndicatorOpacity }}
-      >
+      {/* Primary bouncing scroll indicator — visible on load, fades
+          with phase 1. */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: scrollIndicatorOpacity }}>
         <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center backdrop-blur-sm">
           <ArrowDown className="w-4 h-4 text-white" />
         </div>
       </div>
 
-      {/* Secondary scroll indicator shown once the globe is fully visible */}
-      <div 
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none"
-        style={{ opacity: postGlobeArrowOpacity }}
-      >
+      {/* Secondary arrow — briefly re-appears once the globe has
+          settled so the user knows to keep scrolling. */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: postGlobeArrowOpacity }}>
         <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center">
           <ArrowDown className="w-4 h-4 text-white" />
         </div>
       </div>
 
-      {/* Who We Are Section */}
-      <div ref={whoSectionRef} className="fixed inset-0 z-[5] overflow-hidden" style={{ opacity: whoWeAreOpacity * whoWeAreFadeOut, transform: `translateY(${whoWeAreTranslateY}px)`, pointerEvents: whoWeAreOpacity > 0.1 && whoWeAreFadeOut > 0.1 ? 'auto' : 'none' }}>
+      {/* ============================================================
+          SECTION 3 — WHO WE ARE
+          Fan-carousel of three role cards. Fades in during phase 2
+          (whoWeAreOpacity) and out during phase 3 (whoWeAreFadeOut).
+          ============================================================ */}
+      <div
+        ref={whoSectionRef}
+        className="fixed inset-0 z-[5] overflow-hidden"
+        style={fixedLayerStyle(whoLayerOpacity, whoWeAreTranslateY)}
+      >
         <div className="h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center" style={{ paddingTop: `${navHeight + 48}px` }}>
           <div className="max-w-6xl mx-auto w-full">
             <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium text-center tracking-wide mb-8 md:mb-10 who-we-are-title relative z-10">
               Who We Are
             </h2>
 
-            {/* Fan Carousel */}
+            {/* Fan carousel — three cards, middle one centered, outer
+                two rotated and offset. `--hover-offset` is consumed by
+                the `.fan-card:hover` rule in index.css so the card can
+                lift straight up without losing its horizontal offset. */}
             <div className="relative flex items-center justify-center mb-10 md:mb-14 who-card" style={{ height: 'clamp(300px, 45vh, 460px)' }}>
-              {[
-                { line1: 'Product', line2: 'Designers', img: '/design.JPG', rotate: -8, offsetX: '-55%', zIndex: 1 },
-                { line1: 'Software', line2: 'Developers', img: '/dev.JPG', rotate: 0, offsetX: '0%', zIndex: 3 },
-                { line1: 'Business', line2: 'Members', img: '/business.jpg', rotate: 8, offsetX: '55%', zIndex: 1 },
-              ].map((card) => (
+              {whoCards.map((card) => (
                 <div
                   key={card.line1}
                   className="absolute rounded-xl overflow-hidden shadow-lg cursor-pointer fan-card"
@@ -327,11 +542,7 @@ const App: React.FC = () => {
                     ['--hover-offset' as string]: card.offsetX,
                   }}
                 >
-                  <img
-                    src={card.img}
-                    alt={`${card.line1} ${card.line2}`}
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
+                  <img src={card.img} alt={`${card.line1} ${card.line2}`} className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-0 right-0 text-center text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
                     <span className="block text-sm md:text-base font-normal tracking-wide">{card.line1}</span>
@@ -341,8 +552,12 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            <div className="flex justify-center who-card" style={{ animationDelay: '300ms' }}>
-              <button className="group flex items-center gap-2 px-8 py-3 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-slate-400 transition-all duration-300 cursor-pointer">
+            <div className="flex justify-center who-card">
+              <button
+                type="button"
+                onClick={() => goToView('about')}
+                className="group flex items-center gap-2 px-8 py-3 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-slate-400 transition-all duration-300 cursor-pointer"
+              >
                 <span className="text-base md:text-lg font-light tracking-wide">About Us</span>
                 <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
               </button>
@@ -351,9 +566,19 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Projects Section */}
-      <div ref={projectsSectionRef} className="fixed inset-0 z-[4] overflow-hidden" style={{ opacity: projectsOpacity * projectsFadeOut, transform: `translateY(${projectsTranslateY}px)`, pointerEvents: projectsOpacity > 0.1 && projectsFadeOut > 0.1 ? 'auto' : 'none' }}>
-        <div className="h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center overflow-y-auto" style={{ paddingTop: `${navHeight + 48}px` }}>
+      {/* ============================================================
+          SECTION 4 — PROJECTS
+          Three semester projects. Fades in phase 3 / out phase 4.
+          ============================================================ */}
+      <div
+        ref={projectsSectionRef}
+        className="fixed inset-0 z-[4] overflow-hidden"
+        style={fixedLayerStyle(projectsLayerOpacity, projectsTranslateY, projectsInteractive)}
+      >
+        <div
+          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center ${isMobileViewport ? (projectsIsSettled ? 'overflow-y-auto' : 'overflow-hidden') : 'overflow-y-auto'}`}
+          style={{ paddingTop: `${projectsTopPadding}px`, paddingBottom: projectsBottomPadding }}
+        >
           <div className="max-w-6xl mx-auto w-full">
             <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-wide mb-3 md:mb-4 project-card-animate">
               Powering Real Change
@@ -365,22 +590,28 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-10 md:mb-14">
               {[
                 {
-                  semester: 'Fall 2024',
-                  title: 'Helping combat food insecurity in Nigeria',
-                  description: 'We empowered Lagos Food Bank to serve over 2,000,000 beneficiaries by streamlining their operations. Our system simplified volunteer sign-ups, and provided comprehensive tools for tracking events, and the work of 24,000+ volunteers.',
-                  icon: '/lfbi.png',
-                },
-                {
-                  semester: 'Fall 2024',
-                  title: 'Connecting communities through local events',
-                  description: 'We built a platform for Ithaca community organizations to share events, coordinate resources, and reach broader audiences — making it easier for residents to discover and participate in local initiatives.',
-                  icon: '/cev.png',
-                },
-                {
                   semester: 'Spring 2025',
-                  title: 'Streamlining mentorship for underserved youth',
-                  description: 'We developed a matching and management platform for a youth mentorship nonprofit, helping mentors and mentees connect based on interests, availability, and goals — improving engagement and outcomes.',
-                  icon: '/mentorship.png',
+                  title: 'AI-driven virtual patients for medical training',
+                  description:
+                    'We partnered with MedSimAI to redesign their AI-driven virtual patient platform — adding onboarding flows, scheduling, and difficulty-tiered cases so medical students can rehearse clinical conversations at their own pace.',
+                  icon: '/partners/medsim.png',
+                  link: 'https://medium.com/cornellh4i/medsimai-enhancing-medical-student-communication-through-ai-driven-virtual-patients-f4a487fe0de1',
+                },
+                {
+                  semester: 'Fall 2023',
+                  title: 'Making environmental violation data accessible',
+                  description:
+                    "We worked with the Environmental Data & Governance Initiative to replace the EPA's outdated PDF report cards with an interactive, county-level mapping tool — surfacing violation data through clickable maps and clean visualizations for journalists, educators, and residents.",
+                  icon: '/partners/edgi.jpg',
+                  link: 'https://medium.com/cornellh4i/edgi-improving-access-to-environmental-violation-data-1458ff1fde88',
+                },
+                {
+                  semester: 'Fall 2023',
+                  title: 'Connecting patients with psychiatrists in Ghana',
+                  description:
+                    'We built a telehealth platform for OKB Hope Foundation that connects mental health patients with psychiatrists in Ghana — where just 64 psychiatrists serve 30 million people — through messaging, virtual appointments, and educational outreach.',
+                  icon: '/partners/okb.jpg',
+                  link: 'https://medium.com/cornellh4i/bridging-the-gap-connecting-patients-with-psychiatrists-and-demystifying-mental-health-in-ghana-4e9f2c076373',
                 },
               ].map((project, idx) => (
                 <div
@@ -389,57 +620,234 @@ const App: React.FC = () => {
                 >
                   <div>
                     <span className="text-slate-400 text-xs font-medium tracking-widest uppercase">{project.semester}</span>
-                    <h3 className="text-slate-800 text-lg md:text-xl font-medium leading-snug mt-2 mb-4">
-                      {project.title}
-                    </h3>
-                    <p className="text-slate-500 text-sm font-light leading-relaxed">
-                      {project.description}
-                    </p>
+                    <h3 className="text-slate-800 text-lg md:text-xl font-medium leading-snug mt-2 mb-4">{project.title}</h3>
+                    <p className="text-slate-500 text-sm font-light leading-relaxed">{project.description}</p>
                   </div>
                   <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
-                    <a href="#" className="group/link flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-[#17558E] transition-colors">
+                    <a
+                      href={project.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group/link flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-[#17558E] transition-colors"
+                    >
                       Learn more
                       <ChevronRight className="w-4 h-4 group-hover/link:translate-x-0.5 transition-transform" />
                     </a>
-                    {project.icon && (
-                      <img src={project.icon} alt="" className="w-9 h-9 rounded-lg object-contain opacity-60" />
-                    )}
+                    {project.icon && <img src={project.icon} alt="" className="w-9 h-9 rounded-lg object-contain opacity-60" />}
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="flex justify-center project-card-animate">
-              <a href="#" className="text-slate-600 text-sm font-medium tracking-wide underline underline-offset-4 decoration-slate-300 hover:text-[#17558E] hover:decoration-[#17558E] transition-colors">
+              <button
+                type="button"
+                onClick={() => {
+                  goToView('work');
+                  /* goToView resets scroll to 0 and switches view.
+                   * Defer with rAF + small timeout so React has
+                   * mounted OurWorkPage before we scroll past its
+                   * hero — landing the user directly on the
+                   * Featured projects grid. */
+                  requestAnimationFrame(() => {
+                    setTimeout(() => {
+                      if (typeof window !== 'undefined') {
+                        window.scrollTo({
+                          top: window.innerHeight * 3,
+                          behavior: 'auto',
+                        });
+                      }
+                    }, 50);
+                  });
+                }}
+                className="bg-transparent border-0 p-0 cursor-pointer text-slate-600 text-sm font-medium tracking-wide underline underline-offset-4 decoration-slate-300 hover:text-[#17558E] hover:decoration-[#17558E] transition-colors"
+              >
                 view more projects
-              </a>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Annual Report Section */}
-      <div ref={reportSectionRef} className="fixed inset-0 z-[3] overflow-hidden" style={{ opacity: reportOpacity, transform: `translateY(${reportTranslateY}px)`, pointerEvents: reportOpacity > 0.1 ? 'auto' : 'none' }}>
-        <div className="h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center overflow-y-auto" style={{ paddingTop: `${navHeight + 48}px` }}>
-          <div className="max-w-6xl mx-auto w-full flex flex-col items-center">
-            <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium text-center tracking-wide mb-8 md:mb-12 annual-report-section">
-              Annual Report
-            </h2>
+      {/* ============================================================
+          SECTION 5 — GET INVOLVED
+          Split layout: large Annual Report hero card on the left,
+          four equal action cards (Donate / Email / LinkedIn /
+          Instagram) stacked on the right. Fades in during phase 4.
+          ============================================================ */}
+      <div
+        ref={reportSectionRef}
+        className="fixed inset-0 z-[3] overflow-hidden"
+        style={fixedLayerStyle(reportLayerOpacity, reportTranslateY, reportInteractive)}
+      >
+        <div
+          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start md:items-center justify-center ${isMobileViewport ? (reportIsSettled ? 'overflow-y-auto' : 'overflow-hidden') : 'overflow-y-auto'}`}
+          style={{ paddingTop: `${reportTopPadding}px`, paddingBottom: '24px' }}
+        >
+          {/* Ambient brand-colored glows — purely decorative. */}
+          <div className="pointer-events-none absolute -top-20 -left-20 w-[40rem] h-[40rem] rounded-full opacity-[0.18] blur-3xl" style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }} />
+          <div className="pointer-events-none absolute -bottom-32 -right-20 w-[38rem] h-[38rem] rounded-full opacity-[0.14] blur-3xl" style={{ background: 'radial-gradient(circle, #4CB6C4 0%, transparent 60%)' }} />
 
-            <div className="annual-report-section w-full flex justify-center">
-              {showFlipBook ? (
-                <Suspense fallback={
-                  <div className="flex items-center justify-center h-[400px] text-slate-400 text-lg">
-                    Loading report...
+          <div className="relative max-w-6xl mx-auto w-full">
+            {/* Section header */}
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6 md:mb-8 annual-report-section">
+              <div>
+                <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-wide leading-tight">Get Involved</h2>
+              </div>
+              <p className="text-slate-500 text-sm md:text-base font-light max-w-sm md:text-right">
+                Read our year in review, fuel the next chapter, or stay connected.
+              </p>
+            </div>
+
+            {/* 12-col grid: report card (7) + action stack (5) */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:gap-7 items-stretch">
+
+              {/* --- Annual Report hero card ------------------------
+                   Opens the fullscreen flipbook modal on click. Uses
+                   the `group` class so the tilted cover animates on
+                   hover of the whole card. */}
+              <button
+                onClick={() => { setShowFlipBook(true); setReportOpen(true); }}
+                className="group relative md:col-span-7 annual-report-section text-left rounded-3xl overflow-hidden cursor-pointer min-h-[260px] md:min-h-[380px]"
+                style={{ background: 'linear-gradient(135deg, #0F3C6B 0%, #17558E 55%, #4CB6C4 120%)' }}
+              >
+                {/* Decorative concentric rings in the corner. */}
+                <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full border border-white/10" />
+                <div className="pointer-events-none absolute -top-10 -right-10 w-56 h-56 rounded-full border border-white/10" />
+
+                <div className="relative h-full flex flex-col md:flex-row items-center gap-5 md:gap-6 p-5 md:p-8">
+                  <div className="flex-1 min-w-0 text-white">
+                    <span className="text-white/70 text-[11px] md:text-xs font-semibold tracking-[0.3em] uppercase">2024 — 2025</span>
+                    <h3 className="text-2xl md:text-4xl font-medium leading-tight mt-2 mb-3">
+                      Annual <br className="hidden md:block" />Report
+                    </h3>
+                    <p className="text-white/75 text-xs md:text-sm font-light leading-relaxed max-w-xs mb-5">
+                      A look at the projects, partnerships, and people that shaped our year.
+                    </p>
+                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 text-white text-xs md:text-sm font-medium group-hover:bg-white group-hover:text-[#17558E] transition-all duration-300">
+                      Open the report
+                      <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </span>
                   </div>
-                }>
-                  <FlipBook pdfUrl="/AnnualReport.pdf" />
-                </Suspense>
-              ) : null}
+
+                  {/* Tilted floating cover thumbnail (page 1 of the PDF).
+                      On hover it un-tilts and lifts. */}
+                  <div className="relative shrink-0">
+                    <div
+                      className="relative overflow-hidden rounded-md bg-slate-100 transition-transform duration-500 ease-out group-hover:-translate-y-2 group-hover:rotate-0"
+                      style={{
+                        width: 'clamp(130px, 18vw, 210px)',
+                        aspectRatio: '3 / 4',
+                        transform: 'rotate(6deg)',
+                        boxShadow: '0 30px 60px -15px rgba(0,0,0,0.45), 0 10px 20px -10px rgba(0,0,0,0.4)',
+                      }}
+                    >
+                      {coverUrl ? (
+                        <img src={coverUrl} alt="Annual Report cover" className="absolute inset-0 w-full h-full object-cover" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs">Loading…</div>
+                      )}
+                      {/* Subtle spine highlight along the left edge. */}
+                      <div className="absolute inset-y-0 left-0 w-[6px] bg-gradient-to-r from-black/25 to-transparent" />
+                    </div>
+                  </div>
+                </div>
+              </button>
+
+              {/* --- Right column: 4 equal cards, same total height
+                   as the annual report card (flex-1 each). ---------- */}
+              <div className="md:col-span-5 flex flex-col gap-3 md:gap-3.5">
+                {/* Donate — external link, primary CTA styling. */}
+                <a
+                  href={DONATE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group relative overflow-hidden rounded-2xl px-5 md:px-6 flex-1 min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex items-center justify-between gap-4"
+                >
+                  <div className="pointer-events-none absolute -right-16 -bottom-16 w-48 h-48 rounded-full opacity-10 group-hover:opacity-20 transition-opacity" style={{ background: 'radial-gradient(circle, #17558E, transparent 70%)' }} />
+                  <h3 className="relative text-slate-800 text-base md:text-lg font-medium leading-tight">Fuel our next project</h3>
+                  <div className="relative shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#17558E] text-white text-sm font-medium group-hover:bg-[#0F3C6B] transition-colors shadow-sm">
+                    Donate
+                    <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </div>
+                </a>
+
+                {/* Contact links — email + socials. Share styling. */}
+                {[
+                  { href: `mailto:${CONTACT_EMAIL}`, label: 'Email', Icon: Mail, external: false },
+                  { href: LINKEDIN_URL, label: 'LinkedIn', Icon: Linkedin, external: true },
+                  { href: INSTAGRAM_URL, label: 'Instagram', Icon: Instagram, external: true },
+                ].map(({ href, label, Icon, external }) => (
+                  <a
+                    key={label}
+                    href={href}
+                    {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    className="group relative overflow-hidden rounded-2xl px-5 md:px-6 flex-1 min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex items-center justify-between gap-4"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="shrink-0 w-9 h-9 rounded-full bg-[#17558E]/5 flex items-center justify-center text-[#17558E] group-hover:bg-[#17558E] group-hover:text-white transition-colors">
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="text-slate-800 text-sm md:text-base font-medium leading-tight">{label}</div>
+                    </div>
+                    <ArrowUpRight className="shrink-0 w-4 h-4 text-slate-400 group-hover:text-[#17558E] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      </div>
+      )}
+
+      {/* ============================================================
+          ABOUT VIEW — normal-flow scrollable page.
+          ============================================================ */}
+      {currentView === 'about' && (
+        <AboutPage navClearance={navClearance} />
+      )}
+
+      {/* ============================================================
+          OUR WORK VIEW — projects gallery with hero stats + grid.
+          ============================================================ */}
+      {currentView === 'work' && (
+        <OurWorkPage navClearance={navClearance} />
+      )}
+
+      {/* ============================================================
+          WORK WITH US VIEW — students / nonprofits / sponsors.
+          ============================================================ */}
+      {currentView === 'engage' && (
+        <WorkWithUsPage navClearance={navClearance} />
+      )}
+
+      {/* ============================================================
+          FULLSCREEN ANNUAL REPORT MODAL
+          Black overlay with an X-to-close button. Mounts the lazy
+          FlipBook so users can swipe through the PDF. Body scroll
+          and Escape handling are managed in the reportOpen effect.
+          ============================================================ */}
+      {reportOpen && (
+        <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setReportOpen(false)}
+            className="absolute top-4 right-4 md:top-6 md:right-6 z-[101] flex items-center justify-center w-11 h-11 rounded-full border border-white/30 text-white/80 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+            aria-label="Close annual report"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="w-full h-full flex items-center justify-center px-4 py-16 overflow-y-auto">
+            {showFlipBook && (
+              <Suspense fallback={<div className="text-white/60 text-lg">Loading report...</div>}>
+                <FlipBook pdfUrl="/AnnualReport.pdf" />
+              </Suspense>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

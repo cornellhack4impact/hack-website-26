@@ -120,72 +120,100 @@ const FlipBook: React.FC<FlipBookProps> = ({ pdfUrl }) => {
 
   const isMobile = window.innerWidth < 640;
   const displayPage = isMobile ? currentPage + 1 : Math.min(currentPage + 2, totalPages);
+  const navButtonClass =
+    'flex items-center justify-center rounded-full border border-white/70 bg-white/90 text-slate-700 hover:bg-white transition-all cursor-pointer disabled:opacity-30 disabled:cursor-default';
+
+  const book = (
+    <div
+      className="book-shadow rounded-sm overflow-hidden"
+      style={{ perspective: '2500px' }}
+    >
+      {/* @ts-ignore - react-pageflip types */}
+      <HTMLFlipBook
+        ref={bookRef}
+        width={dimensions.width}
+        height={dimensions.height}
+        size="fixed"
+        minWidth={200}
+        maxWidth={500}
+        minHeight={280}
+        maxHeight={700}
+        showCover={true}
+        mobileScrollSupport={false}
+        onFlip={onFlip}
+        className="flip-book"
+        startPage={0}
+        drawShadow={true}
+        flippingTime={600}
+        usePortrait={isMobile}
+        startZIndex={0}
+        autoSize={false}
+        maxShadowOpacity={0.4}
+        showPageCorners={true}
+        disableFlipByClick={false}
+        useMouseEvents={true}
+        swipeDistance={30}
+        clickEventForward={false}
+        style={{}}
+      >
+        {pages.map((url, i) => (
+          <Page key={i} pageUrl={url} pageNumber={i + 1} />
+        ))}
+      </HTMLFlipBook>
+    </div>
+  );
 
   return (
-    <div ref={containerRef} className="flex flex-col items-center gap-6">
-      <div className="relative flex items-center gap-2 md:gap-4">
-        {/* Previous button */}
-        <button
-          onClick={flipPrev}
-          className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full border border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-default"
-          disabled={currentPage === 0}
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-
-        {/* Book */}
-        <div
-          className="book-shadow rounded-sm overflow-hidden"
-          style={{ perspective: '2500px' }}
-        >
-          {/* @ts-ignore - react-pageflip types */}
-          <HTMLFlipBook
-            ref={bookRef}
-            width={dimensions.width}
-            height={dimensions.height}
-            size="fixed"
-            minWidth={200}
-            maxWidth={500}
-            minHeight={280}
-            maxHeight={700}
-            showCover={true}
-            mobileScrollSupport={false}
-            onFlip={onFlip}
-            className="flip-book"
-            startPage={0}
-            drawShadow={true}
-            flippingTime={600}
-            usePortrait={isMobile}
-            startZIndex={0}
-            autoSize={false}
-            maxShadowOpacity={0.4}
-            showPageCorners={true}
-            disableFlipByClick={false}
-            useMouseEvents={true}
-            swipeDistance={30}
-            clickEventForward={false}
-            style={{}}
+    <div ref={containerRef} className="flex flex-col items-center gap-4 md:gap-6">
+      {isMobile ? (
+        <>
+          {book}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={flipPrev}
+              className={`${navButtonClass} w-11 h-11`}
+              disabled={currentPage === 0}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="text-white/80 text-sm font-light tracking-wide min-w-[92px] text-center">
+              {currentPage + 1} of {totalPages}
+            </div>
+            <button
+              onClick={flipNext}
+              className={`${navButtonClass} w-11 h-11`}
+              disabled={currentPage >= totalPages - 1}
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="relative flex items-center gap-4">
+          <button
+            onClick={flipPrev}
+            className={`${navButtonClass} w-12 h-12`}
+            disabled={currentPage === 0}
+            aria-label="Previous page"
           >
-            {pages.map((url, i) => (
-              <Page key={i} pageUrl={url} pageNumber={i + 1} />
-            ))}
-          </HTMLFlipBook>
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          {book}
+          <button
+            onClick={flipNext}
+            className={`${navButtonClass} w-12 h-12`}
+            disabled={currentPage >= totalPages - 1}
+            aria-label="Next page"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
         </div>
-
-        {/* Next button */}
-        <button
-          onClick={flipNext}
-          className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-full border border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-default"
-          disabled={currentPage >= totalPages - 1}
-          aria-label="Next page"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
+      )}
 
       {/* Page indicator */}
-      <div className="text-slate-400 text-sm font-light tracking-wide">
+      <div className="hidden md:block text-white/70 text-sm font-light tracking-wide">
         {currentPage + 1}{!isMobile && currentPage + 1 < totalPages ? `–${displayPage}` : ''} of {totalPages}
       </div>
     </div>
