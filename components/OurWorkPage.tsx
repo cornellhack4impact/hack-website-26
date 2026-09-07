@@ -1,26 +1,20 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { PROJECTS, type Project } from '../data/projects';
 import { PARTNERS, type Partner } from '../data/partners';
-import {
-  fixedLayerStyle,
-  normalize,
-  useIsMobile,
-  useScrollPhases,
-} from '../utils/scroll';
 import { MEDIUM_URL } from '../utils/links';
 
 interface OurWorkPageProps {
-  /** Height of the fixed top nav so each layer can clear it on every screen. */
+  /** Height of the fixed top nav so the hero clears it on every screen. */
   navClearance: number;
 }
-
 
 /* ------------------------------------------------------------------
  * Partner chip — circular avatar. Always renders the partner's
  * initials on a soft brand-colored gradient. If `logo` is set the
  * image overlays the initials; if it 404s we hide the img inline so
- * the initials show through.
+ * the initials show through. Local state tracks load failures so
+ * transparent PNGs / SVGs don't show the initials behind the logo.
  * ------------------------------------------------------------------ */
 const initialsOf = (name: string) =>
   name
@@ -35,10 +29,6 @@ const PartnerChip: React.FC<{ partner: Partner; size?: 'sm' | 'md' }> = ({
   partner,
   size = 'md',
 }) => {
-  /* Track image-load failures per chip so we can swap to the
-   * initials fallback only when the logo genuinely isn't available.
-   * Without this, transparent PNGs / SVGs let the initials show
-   * through the logo's empty pixels. */
   const [logoFailed, setLogoFailed] = useState(false);
   const showInitials = !partner.logo || logoFailed;
 
@@ -68,57 +58,60 @@ const PartnerChip: React.FC<{ partner: Partner; size?: 'sm' | 'md' }> = ({
 
 /* ------------------------------------------------------------------
  * Featured project card — wide horizontal layout with copy on one
- * side and a large image on the other.
+ * side and a large image on the other. Soft brand gradient sits
+ * behind transparent mockups; the image uses object-contain so the
+ * gradient stays visible around the artwork.
  * ------------------------------------------------------------------ */
-const FeaturedProjectCard: React.FC<{ project: Project }> = ({ project }) => (
-  <article className="group grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)] gap-5 md:gap-8 items-stretch">
-    <div className="flex flex-col">
-      <h3 className="text-slate-800 text-xl md:text-2xl font-medium tracking-tight mb-2 md:mb-3">
-        {project.name}
-      </h3>
-      <p className="text-slate-500 text-sm md:text-[15px] font-light leading-relaxed">
-        {project.description}
-      </p>
-      <span className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mt-3 md:mt-4">
-        {project.semester}
-      </span>
-      <a
-        href={project.link ?? '#'}
-        {...(project.link
-          ? { target: '_blank', rel: 'noopener noreferrer' }
-          : { onClick: (e: React.MouseEvent) => e.preventDefault() })}
-        className="inline-flex items-center gap-1 text-[#17558E] text-sm font-medium hover:underline self-start mt-auto pt-4"
-      >
-        View project
-        <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-      </a>
-    </div>
+const FeaturedProjectCard: React.FC<{ project: Project }> = ({ project }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showPlaceholder = !project.image || imageFailed;
 
-    <div className="relative aspect-[16/9] md:aspect-[16/10] rounded-2xl bg-gradient-to-br from-[#E8F1F8] via-[#F6F5F4] to-[#E0EEF1] border border-slate-200/80 overflow-hidden">
-      <div className="absolute inset-0 flex items-center justify-center text-[#17558E] text-2xl md:text-3xl font-medium tracking-wide px-4 text-center">
-        {project.name}
+  return (
+    <article className="group grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.8fr)] gap-5 md:gap-8 items-stretch">
+      <div className="flex flex-col">
+        <h3 className="text-slate-800 text-xl md:text-2xl font-medium tracking-tight mb-2 md:mb-3">
+          {project.name}
+        </h3>
+        <p className="text-slate-500 text-sm md:text-[15px] font-light leading-relaxed">
+          {project.description}
+        </p>
+        <span className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mt-3 md:mt-4">
+          {project.semester}
+        </span>
+        <a
+          href={project.link ?? '#'}
+          {...(project.link
+            ? { target: '_blank', rel: 'noopener noreferrer' }
+            : { onClick: (e: React.MouseEvent) => e.preventDefault() })}
+          className="inline-flex items-center gap-1 text-[#17558E] text-sm font-medium hover:underline self-start mt-auto pt-4"
+        >
+          View project
+          <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+        </a>
       </div>
-      {project.image && (
-        <img
-          src={project.image}
-          alt={project.name}
-          loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
-      )}
-    </div>
-  </article>
-);
 
-/* ------------------------------------------------------------------
- * Constellation positions — 13 hand-tuned slots in a 0..100 percent
- * grid for the right-side chip cluster. Picked so chips at scale
- * 0.8–1.15 don't overlap. We cycle the array if more partners
- * exist, so adding entries to data/partners.ts won't break layout.
- * ------------------------------------------------------------------ */
+      <div className="relative aspect-[16/9] md:aspect-[16/10] rounded-2xl bg-gradient-to-br from-[#E8F1F8] via-[#F6F5F4] to-[#E0EEF1] border border-slate-200/80 overflow-hidden">
+        {showPlaceholder ? (
+          <div className="absolute inset-0 flex items-center justify-center text-[#17558E] text-2xl md:text-3xl font-medium tracking-wide px-4 text-center">
+            {project.name}
+          </div>
+        ) : (
+          <img
+            src={project.image}
+            alt={project.name}
+            loading="lazy"
+            className="absolute inset-0 w-full h-full object-contain p-1 md:p-1.5 transition-transform duration-500 group-hover:scale-[1.02]"
+            onError={() => setImageFailed(true)}
+          />
+        )}
+      </div>
+    </article>
+  );
+};
+
+/* Hand-tuned 0..100 percent positions for the hero's partner
+ * constellation. Picked so chips at scale 0.8–1.15 don't overlap.
+ * Cycles through the array if more partners exist. */
 const CONSTELLATION: { top: string; left: string; scale: number; delay: string }[] = [
   { top: '4%',  left: '32%', scale: 1.0,  delay: '0.0s' },
   { top: '12%', left: '68%', scale: 0.85, delay: '0.6s' },
@@ -135,27 +128,13 @@ const CONSTELLATION: { top: string; left: string; scale: number; delay: string }
   { top: '88%', left: '84%', scale: 0.8,  delay: '0.2s' },
 ];
 
+/* ------------------------------------------------------------------
+ * Our Work page — natural-flow scrolling layout. Two stacked
+ * sections (Hero with reach stats + partner constellation, Featured
+ * projects list with Medium footer). No fixed layers, no inner
+ * scroll containers.
+ * ------------------------------------------------------------------ */
 const OurWorkPage: React.FC<OurWorkPageProps> = ({ navClearance }) => {
-  /* Two layered sections (Hero, Featured) → one phase transition. */
-  const [scrollPhase1] = useScrollPhases(1);
-  const isMobile = useIsMobile();
-
-  const heroOpacity = Math.max(1 - scrollPhase1 * 2, 0);
-  const heroTranslateY = -scrollPhase1 * 30;
-
-  const featuredFadeIn = normalize(scrollPhase1, 0.55, 0.95);
-  const featuredLayerOpacity = featuredFadeIn;
-  const featuredTranslateY = Math.max(30 - featuredFadeIn * 30, 0);
-
-  const featuredIsSettled =
-    featuredLayerOpacity >= 0.99 && scrollPhase1 >= 0.99;
-  const featuredInteractive = isMobile
-    ? featuredIsSettled
-    : featuredLayerOpacity > 0.1;
-
-  const heroTopPadding = navClearance + 48;
-  const featuredTopPadding = isMobile ? navClearance + 56 : navClearance + 40;
-
   const reachStats: { value: string; label: string }[] = [
     { value: '11', label: 'Cities' },
     { value: '5', label: 'States' },
@@ -164,187 +143,153 @@ const OurWorkPage: React.FC<OurWorkPageProps> = ({ navClearance }) => {
   ];
 
   return (
-    /* Tall scroll container drives the phase value above. Each
-     * visual section is a fixed layer stacked inside it. */
-    <div className="relative w-full bg-[#F6F5F4]" style={{ minHeight: '400vh' }}>
+    <div className="relative w-full bg-[#F6F5F4]">
 
       {/* ============================================================
-          HERO LAYER — two-column: copy on the left, partner chip
-          constellation on the right (mobile: stacked).
+          HERO — copy on the left + partner constellation on the
+          right. paddingTop clears the fixed nav.
           ============================================================ */}
-      <div
-        className="fixed inset-0 z-30 overflow-hidden"
-        style={fixedLayerStyle(heroOpacity, heroTranslateY)}
+      <section
+        className="relative px-4 md:px-8 pb-12 md:pb-20 overflow-hidden"
+        style={{ paddingTop: `${navClearance + 48}px` }}
       >
+        {/* Ambient brand-colored glows — purely decorative. */}
         <div
-          className="relative h-full px-4 md:px-8 bg-[#F6F5F4] flex flex-col items-center justify-center overflow-hidden"
-          style={{ paddingTop: `${heroTopPadding}px`, paddingBottom: '32px' }}
-        >
-          {/* Ambient brand-colored glows — purely decorative. */}
-          <div
-            className="pointer-events-none absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full opacity-[0.16] blur-3xl"
-            style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-32 -right-24 w-[40rem] h-[40rem] rounded-full opacity-[0.12] blur-3xl"
-            style={{ background: 'radial-gradient(circle, #4CB6C4 0%, transparent 60%)' }}
-          />
+          className="pointer-events-none absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full opacity-[0.16] blur-3xl"
+          style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-32 -right-24 w-[40rem] h-[40rem] rounded-full opacity-[0.12] blur-3xl"
+          style={{ background: 'radial-gradient(circle, #4CB6C4 0%, transparent 60%)' }}
+        />
 
-          <div className="relative max-w-6xl mx-auto w-full grid md:grid-cols-[1.05fr_1fr] gap-10 md:gap-14 items-center">
+        <div className="relative max-w-6xl mx-auto w-full grid md:grid-cols-[1.05fr_1fr] gap-10 md:gap-14 items-center">
 
-            {/* ── LEFT: copy + stats ───────────────────────────── */}
-            <div>
-              <span className="block text-slate-400 text-xs md:text-sm font-semibold tracking-[0.3em] uppercase mb-4 md:mb-5">
-                Our Work
+          {/* ── LEFT: copy + stats ───────────────────────────── */}
+          <div>
+            <span className="block text-slate-400 text-xs md:text-sm font-semibold tracking-[0.3em] uppercase mb-4 md:mb-5">
+              Our Work
+            </span>
+            <h1 className="text-[#17558E] font-medium tracking-tight leading-[0.95]">
+              <span className="block text-4xl md:text-5xl lg:text-6xl">
+                Built to
               </span>
-              <h1 className="text-[#17558E] font-medium tracking-tight leading-[0.95]">
-                <span className="block text-4xl md:text-5xl lg:text-6xl">
-                  Built to
-                </span>
-                <span
-                  className="block text-5xl md:text-6xl lg:text-7xl italic mt-1 md:mt-2"
-                  style={{ fontFamily: "'Playfair Display', serif" }}
+              <span
+                className="block text-5xl md:text-6xl lg:text-7xl italic mt-1 md:mt-2"
+                style={{ fontFamily: "'Playfair Display', serif" }}
+              >
+                Make a Difference.
+              </span>
+            </h1>
+            <p className="text-slate-500 text-base md:text-lg leading-relaxed font-light max-w-md mt-5 md:mt-6">
+              We build with empathy, impact, and for the communities we're here to support.
+            </p>
+
+            {/* Stats — 2x2 grid of glassy fact tiles. */}
+            <div className="mt-7 md:mt-8 grid grid-cols-4 gap-2 md:gap-3 max-w-md">
+              {reachStats.map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/80 px-2 py-3 md:px-3 md:py-4 text-center"
                 >
-                  Make a Difference.
-                </span>
-              </h1>
-              <p className="text-slate-500 text-base md:text-lg leading-relaxed font-light max-w-md mt-5 md:mt-6">
-                We build with empathy, impact, and for the communities we're here to support.
-              </p>
-
-              {/* Stats — 2x2 grid that doubles as a "fact card" */}
-              <div className="mt-7 md:mt-8 grid grid-cols-4 gap-2 md:gap-3 max-w-md">
-                {reachStats.map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/80 px-2 py-3 md:px-3 md:py-4 text-center"
-                  >
-                    <div className="text-[#17558E] text-xl md:text-2xl font-medium tracking-tight leading-none">
-                      {stat.value}
-                    </div>
-                    <div className="text-slate-500 text-[10px] md:text-[11px] font-medium tracking-wide mt-1.5 md:mt-2 uppercase">
-                      {stat.label}
-                    </div>
+                  <div className="text-[#17558E] text-xl md:text-2xl font-medium tracking-tight leading-none">
+                    {stat.value}
                   </div>
-                ))}
-              </div>
-              <p className="text-slate-400 text-[11px] md:text-xs font-medium tracking-[0.2em] uppercase mt-3 md:mt-4">
-                Our clients span the world
-              </p>
-
-              {/* Mobile-only scroll hint */}
-              <div className="md:hidden flex justify-center mt-8">
-                <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                  <span className="text-[11px] font-semibold tracking-[0.25em] uppercase">
-                    Featured projects
-                  </span>
-                  <ChevronDown className="w-5 h-5 animate-bounce" />
+                  <div className="text-slate-500 text-[10px] md:text-[11px] font-medium tracking-wide mt-1.5 md:mt-2 uppercase">
+                    {stat.label}
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
+            <p className="text-slate-400 text-[11px] md:text-xs font-medium tracking-[0.2em] uppercase mt-3 md:mt-4">
+              Our clients span the world
+            </p>
+          </div>
 
-            {/* ── RIGHT: partner constellation (desktop) ────────── */}
-            <div className="hidden md:block relative">
-              {/* Soft inner glow behind the constellation so the
-                  cluster feels anchored in space. */}
-              <div
-                className="pointer-events-none absolute inset-6 rounded-full opacity-50 blur-2xl"
-                style={{
-                  background:
-                    'radial-gradient(circle, rgba(232,241,248,0.9) 0%, rgba(224,238,241,0.4) 50%, transparent 80%)',
-                }}
-              />
-              <div className="relative w-full mx-auto aspect-[4/5] max-w-[26rem]">
-                {PARTNERS.map((partner, i) => {
-                  const pos = CONSTELLATION[i % CONSTELLATION.length];
-                  return (
-                    <div
-                      key={partner.name}
-                      className="absolute partner-float"
-                      style={{
-                        top: pos.top,
-                        left: pos.left,
-                        animationDelay: pos.delay,
-                        // CSS variable consumed by the @keyframes
-                        // partnerFloat rule so the static scale is
-                        // preserved across the float animation.
-                        ['--chip-scale' as string]: pos.scale,
-                      } as React.CSSProperties}
-                    >
-                      <PartnerChip partner={partner} />
-                    </div>
-                  );
-                })}
-              </div>
+          {/* ── RIGHT: partner constellation (desktop) ────────── */}
+          <div className="hidden md:block relative">
+            {/* Soft inner glow behind the cluster. */}
+            <div
+              className="pointer-events-none absolute inset-6 rounded-full opacity-50 blur-2xl"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(232,241,248,0.9) 0%, rgba(224,238,241,0.4) 50%, transparent 80%)',
+              }}
+            />
+            <div className="relative w-full mx-auto aspect-[4/5] max-w-[26rem]">
+              {PARTNERS.map((partner, i) => {
+                const pos = CONSTELLATION[i % CONSTELLATION.length];
+                return (
+                  <div
+                    key={partner.name}
+                    className="absolute partner-float"
+                    style={{
+                      top: pos.top,
+                      left: pos.left,
+                      animationDelay: pos.delay,
+                      // CSS variable consumed by `partnerFloat` keyframe
+                      // so the static scale isn't lost when the
+                      // animation overrides `transform`.
+                      ['--chip-scale' as string]: pos.scale,
+                    } as React.CSSProperties}
+                  >
+                    <PartnerChip partner={partner} />
+                  </div>
+                );
+              })}
             </div>
+          </div>
 
-            {/* ── BELOW (mobile only): chips wrap into rows ─────── */}
-            <div className="md:hidden">
-              <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-sm mx-auto">
-                {PARTNERS.map((partner) => (
-                  <PartnerChip key={partner.name} partner={partner} size="sm" />
-                ))}
-              </div>
+          {/* ── BELOW (mobile only): chips wrap into rows ─────── */}
+          <div className="md:hidden">
+            <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-sm mx-auto">
+              {PARTNERS.map((partner) => (
+                <PartnerChip key={partner.name} partner={partner} size="sm" />
+              ))}
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* ============================================================
-          FEATURED LAYER — vertical list of horizontal project cards
-          + Medium footer.
+          FEATURED — vertical list of horizontal project cards in
+          natural document flow. Hairlines separate cards.
           ============================================================ */}
-      <div
-        className="fixed inset-0 z-20 overflow-hidden"
-        style={fixedLayerStyle(featuredLayerOpacity, featuredTranslateY, featuredInteractive)}
-      >
-        <div
-          className="h-full px-4 md:px-8 bg-[#F6F5F4] flex flex-col items-center overflow-hidden"
-          style={{ paddingTop: `${featuredTopPadding}px`, paddingBottom: '24px' }}
-        >
-          <div className="max-w-6xl mx-auto w-full flex-1 min-h-0 flex flex-col">
-            <div className="shrink-0 flex items-baseline justify-between gap-4 mb-6 md:mb-8">
-              <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-tight leading-tight">
-                Featured
-              </h2>
-              <span className="hidden md:inline text-slate-400 text-sm font-medium">
-                {PROJECTS.length} projects
-              </span>
-            </div>
+      <section className="px-4 md:px-8 py-12 md:py-20">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-baseline justify-between gap-4 mb-8 md:mb-10">
+            <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-tight leading-tight">
+              Featured
+            </h2>
+            <span className="hidden md:inline text-slate-400 text-sm font-medium">
+              {PROJECTS.length} projects
+            </span>
+          </div>
 
-            <div
-              className={`flex-1 min-h-0 ${
-                featuredIsSettled ? 'overflow-y-auto' : 'overflow-hidden'
-              } pr-1`}
-            >
-              <div className="divide-y divide-slate-200">
-                {PROJECTS.map((project) => (
-                  <div key={project.name} className="py-6 md:py-8 first:pt-0 last:pb-0">
-                    <FeaturedProjectCard project={project} />
-                  </div>
-                ))}
+          <div className="divide-y divide-slate-200">
+            {PROJECTS.map((project) => (
+              <div key={project.name} className="py-6 md:py-8 first:pt-0 last:pb-0">
+                <FeaturedProjectCard project={project} />
               </div>
+            ))}
+          </div>
 
-              <div className="mt-8 md:mt-10 pt-6 md:pt-8 border-t border-slate-200 text-center">
-                <p className="text-slate-500 text-sm md:text-base font-light">
-                  Want to learn more about our previous projects? Check out our{' '}
-                  <a
-                    href={MEDIUM_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#17558E] underline underline-offset-2 decoration-[#17558E]/40 hover:decoration-[#17558E] font-medium transition-colors"
-                  >
-                    Medium
-                  </a>{' '}
-                  page.
-                </p>
-              </div>
-
-              <div className="h-4 md:h-6" />
-            </div>
+          <div className="mt-10 md:mt-12 pt-6 md:pt-8 border-t border-slate-200 text-center">
+            <p className="text-slate-500 text-sm md:text-base font-light">
+              Want to learn more about our previous projects? Check out our{' '}
+              <a
+                href={MEDIUM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#17558E] underline underline-offset-2 decoration-[#17558E]/40 hover:decoration-[#17558E] font-medium transition-colors"
+              >
+                Medium
+              </a>{' '}
+              page.
+            </p>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

@@ -66,7 +66,7 @@ export const PROJECTS: Project[] = [
     semester: 'Fall 2024',
     description:
       'We empowered Lagos Food Bank to serve over 2,000,000 beneficiaries by streamlining their operations. Our system simplified volunteer sign-ups and provided comprehensive tools for tracking events and the work of 24,000+ volunteers.',
-    image: '/projects/lfbi.png',
+    image: '/projects/lagos.png',
     status: 'past',
   },
 ];

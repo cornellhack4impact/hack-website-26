@@ -51,14 +51,9 @@ const App: React.FC = () => {
   /* ================================================================
    * SCROLL-DRIVEN ANIMATION STATE
    *
-   * The page is a single tall scroll container (1100vh). Five visual
-   * "sections" are stacked as fixed-position layers, and we fade /
-   * translate between them as the user scrolls.
-   *
-   * Each of the 4 transitions runs over 1.5vh of scroll, preceded
-   * by a 1vh "hold" where the current section sits fully visible —
-   * matching `useScrollPhases`'s defaults. Five sections need four
-   * transitions:
+   * Five visual sections are stacked as fixed-position layers and
+   * crossfade between each other as the user scrolls. Four phase
+   * transitions are needed:
    *
    *   scrollProgress  → Hero text → Globe + compact header
    *   scrollPhase2    → Globe → Who We Are
@@ -72,6 +67,10 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoLoadError, setLogoLoadError] = useState(false);
   const [navHeight, setNavHeight] = useState(96);
+  /* Tracks whether the user has scrolled past the very top of the
+   * page. Used to give the desktop nav a blurred background so
+   * content scrolling underneath doesn't show through awkwardly. */
+  const [pageScrolled, setPageScrolled] = useState(false);
 
   /* Annual report state: coverUrl is the rendered first-page
    * thumbnail; showFlipBook gates mounting the heavy FlipBook
@@ -89,9 +88,9 @@ const App: React.FC = () => {
 
   const [currentView, setCurrentView] = useState<SiteView>(resolveViewFromHash);
   const whoCards = [
-    { line1: 'Product', line2: 'Designers', img: '/design.JPG', rotate: -8, offsetX: '-55%', zIndex: 1 },
-    { line1: 'Software', line2: 'Developers', img: '/dev.JPG', rotate: 0, offsetX: '0%', zIndex: 3 },
-    { line1: 'Business', line2: 'Members', img: '/business.jpg', rotate: 8, offsetX: '55%', zIndex: 1 },
+    { label: 'Designers', img: '/design.JPG', rotate: -8, offsetX: '-55%', zIndex: 1 },
+    { label: 'Developers', img: '/dev.JPG', rotate: 0, offsetX: '0%', zIndex: 3 },
+    { label: 'Business', img: '/business.jpg', rotate: 8, offsetX: '55%', zIndex: 1 },
   ];
 
   const goToView = (view: SiteView) => {
@@ -143,9 +142,16 @@ const App: React.FC = () => {
     };
   }, [reportOpen]);
 
-  /* The scroll listener is handled by `useScrollPhases` above; the
-   * four phase values are derived from window.scrollY according to
-   * the standard 1vh hold + 1.5vh transition pattern. */
+  /* The scroll listener for layered phases is handled by
+   * `useScrollPhases` above. We add a tiny separate listener here
+   * just to flip a boolean once the user has scrolled past the very
+   * top — drives the nav's scroll-aware blur background. */
+  useEffect(() => {
+    const update = () => setPageScrolled(window.scrollY > 8);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
 
   /* ----------------------------------------------------------------
    * Track the nav height so fixed-position sections can offset their
@@ -228,9 +234,15 @@ const App: React.FC = () => {
   const projectsFadeOut = 1 - normalize(scrollPhase4, 0.1, 0.58);
   const reportOpacity = normalize(scrollPhase4, 0.58, 0.95);
   const reportTranslateY = Math.max(30 - reportOpacity * 30, 0);
+
   const whoLayerOpacity = whoWeAreOpacity * whoWeAreFadeOut;
   const projectsLayerOpacity = projectsOpacity * projectsFadeOut;
   const reportLayerOpacity = reportOpacity;
+
+  // Mobile-only "settled" gates: only allow internal scroll/clicks
+  // once the layer has fully faded in AND the surrounding layers
+  // have faded out. Prevents wheel events from bleeding across
+  // phase transitions.
   const projectsIsSettled =
     projectsLayerOpacity >= 0.99 &&
     whoLayerOpacity <= 0.01 &&
@@ -244,16 +256,14 @@ const App: React.FC = () => {
   const projectsInteractive = isMobileViewport ? projectsIsSettled : projectsLayerOpacity > 0.1;
   const reportInteractive = isMobileViewport ? reportIsSettled : reportLayerOpacity > 0.1;
 
-  // Mobile sections need extra breathing room below the fixed nav so
-  // large headings/cards never touch the header area.
+  // Mobile sections need extra breathing room below the fixed nav
+  // so large headings/cards never touch the header area.
   const projectsTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
   const reportTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
   const projectsBottomPadding = isMobileViewport ? 'calc(96px + env(safe-area-inset-bottom))' : '48px';
 
-  /* ----------------------------------------------------------------
-   * Lazy-mount the FlipBook once the Get Involved section starts to
-   * appear, and stagger-in the section's internal elements.
-   * ---------------------------------------------------------------- */
+  /* Lazy-mount the FlipBook + stagger-in the section's elements
+   * once Get Involved starts to appear. */
   useEffect(() => {
     if (reportOpacity > 0.1 && !showFlipBook) setShowFlipBook(true);
     if (reportOpacity > 0.3 && reportSectionRef.current) {
@@ -303,9 +313,25 @@ const App: React.FC = () => {
           TOP NAVIGATION — always visible, sits above every section.
           Collapses to a hamburger menu below md.
           ============================================================ */}
-      <div className="fixed top-2 md:top-3 left-0 w-full z-40 px-3 md:px-6 pointer-events-auto">
-        <nav ref={navRef} className="mx-auto w-full max-w-6xl rounded-xl border border-slate-200/80 bg-[#F6F5F4]/95 backdrop-blur-md shadow-sm md:rounded-none md:border-transparent md:bg-transparent md:backdrop-blur-0 md:shadow-none">
-          <div className="flex items-center justify-between gap-4 px-2 py-2 md:px-2 md:py-3">
+      <div className="fixed top-2 md:top-3 left-0 w-full z-40 px-3 md:px-4 pointer-events-auto">
+        <nav
+          ref={navRef}
+          className={[
+            // Mobile is always a rounded card with a blurred bg —
+            // the nav has to occlude content underneath since the
+            // page scrolls below it.
+            // Wider than page content (max-w-6xl) so the bar has
+            // breathing room past the links without shifting them.
+            'mx-auto w-full max-w-7xl rounded-xl border border-slate-200/80 bg-[#F6F5F4]/95 backdrop-blur-md shadow-sm transition-all duration-300 md:rounded-none',
+            // Desktop: transparent at the very top so the hero feels
+            // edge-to-edge; once the user starts scrolling, fade in
+            // a blurred background so content can't bleed through.
+            pageScrolled
+              ? 'md:border-slate-200/40 md:bg-[#F6F5F4]/80 md:backdrop-blur-md md:shadow-sm'
+              : 'md:border-transparent md:bg-transparent md:backdrop-blur-0 md:shadow-none',
+          ].join(' ')}
+        >
+          <div className="mx-auto w-full max-w-6xl flex items-center justify-between gap-4 px-2 py-2 md:px-2 md:py-3">
             {/* Logo — clickable, returns to home. Falls back to a
                 text wordmark if the image 404s. */}
             <button
@@ -316,9 +342,9 @@ const App: React.FC = () => {
             >
               {!logoLoadError ? (
                 <img
-                  src="/image.png"
+                  src="/logos/logo.png"
                   alt="Logo"
-                  className="h-8 md:h-9 w-auto max-w-[180px] md:max-w-[260px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+                  className="h-11 md:h-14 w-auto max-w-[240px] md:max-w-[340px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
                   onError={() => setLogoLoadError(true)}
                 />
               ) : (
@@ -403,9 +429,10 @@ const App: React.FC = () => {
       </div>
 
       {/* ============================================================
-          HOME VIEW — single tall scroll container (1100vh) with each
-          section stacked as a fixed layer. Only mounted when the
-          user is on the home route.
+          HOME VIEW — single tall scroll container (1100vh) with
+          every section stacked as a fixed layer. The layers
+          crossfade as the user scrolls through 4 phase transitions.
+          Only mounted when the user is on the home route.
           ============================================================ */}
       {currentView === 'home' && (
       <div className="relative w-full min-h-[1100vh]">
@@ -509,7 +536,8 @@ const App: React.FC = () => {
       {/* ============================================================
           SECTION 3 — WHO WE ARE
           Fan-carousel of three role cards. Fades in during phase 2
-          (whoWeAreOpacity) and out during phase 3 (whoWeAreFadeOut).
+          (whoWeAreOpacity) and out via the shared `layerExitOpacity`
+          when the user reaches the end of the layered zone.
           ============================================================ */}
       <div
         ref={whoSectionRef}
@@ -529,7 +557,7 @@ const App: React.FC = () => {
             <div className="relative flex items-center justify-center mb-10 md:mb-14 who-card" style={{ height: 'clamp(300px, 45vh, 460px)' }}>
               {whoCards.map((card) => (
                 <div
-                  key={card.line1}
+                  key={card.label}
                   className="absolute rounded-xl overflow-hidden shadow-lg cursor-pointer fan-card"
                   style={{
                     width: 'clamp(180px, 22vw, 280px)',
@@ -542,11 +570,10 @@ const App: React.FC = () => {
                     ['--hover-offset' as string]: card.offsetX,
                   }}
                 >
-                  <img src={card.img} alt={`${card.line1} ${card.line2}`} className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={card.img} alt={card.label} className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-0 right-0 text-center text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-                    <span className="block text-sm md:text-base font-normal tracking-wide">{card.line1}</span>
-                    <span className="block text-lg md:text-xl font-medium italic tracking-wide">{card.line2}</span>
+                    <span className="block text-lg md:text-xl font-medium italic tracking-wide">{card.label}</span>
                   </div>
                 </div>
               ))}
@@ -593,7 +620,7 @@ const App: React.FC = () => {
                   semester: 'Spring 2025',
                   title: 'AI-driven virtual patients for medical training',
                   description:
-                    'We partnered with MedSimAI to redesign their AI-driven virtual patient platform — adding onboarding flows, scheduling, and difficulty-tiered cases so medical students can rehearse clinical conversations at their own pace.',
+                    'We partnered with MedSimAI to redesign their AI-driven virtual patient platform, adding onboarding flows, scheduling and difficulty-tiered cases so medical students can rehearse clinical conversations at their own pace.',
                   icon: '/partners/medsim.png',
                   link: 'https://medium.com/cornellh4i/medsimai-enhancing-medical-student-communication-through-ai-driven-virtual-patients-f4a487fe0de1',
                 },
@@ -601,7 +628,7 @@ const App: React.FC = () => {
                   semester: 'Fall 2023',
                   title: 'Making environmental violation data accessible',
                   description:
-                    "We worked with the Environmental Data & Governance Initiative to replace the EPA's outdated PDF report cards with an interactive, county-level mapping tool — surfacing violation data through clickable maps and clean visualizations for journalists, educators, and residents.",
+                    "We worked with the Environmental Data & Governance Initiative to replace the EPA's outdated PDF report cards with an interactive, county-level mapping tool, surfacing violation data through clickable maps and clean visualizations for journalists, educators, and residents.",
                   icon: '/partners/edgi.jpg',
                   link: 'https://medium.com/cornellh4i/edgi-improving-access-to-environmental-violation-data-1458ff1fde88',
                 },
@@ -609,7 +636,7 @@ const App: React.FC = () => {
                   semester: 'Fall 2023',
                   title: 'Connecting patients with psychiatrists in Ghana',
                   description:
-                    'We built a telehealth platform for OKB Hope Foundation that connects mental health patients with psychiatrists in Ghana — where just 64 psychiatrists serve 30 million people — through messaging, virtual appointments, and educational outreach.',
+                    'We built a telehealth platform for OKB Hope Foundation that connects mental health patients with psychiatrists in Ghana, through messaging, virtual appointments, and educational outreach.',
                   icon: '/partners/okb.jpg',
                   link: 'https://medium.com/cornellh4i/bridging-the-gap-connecting-patients-with-psychiatrists-and-demystifying-mental-health-in-ghana-4e9f2c076373',
                 },

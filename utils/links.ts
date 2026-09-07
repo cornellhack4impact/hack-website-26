@@ -24,12 +24,20 @@ export const CROWDFUNDING_URL = DONATE_URL;
 /* PDF in Drive — sent to prospective sponsors so they can review the
  * tier breakdown and benefits offline. */
 export const SPONSORSHIP_PACKAGE_URL =
-  'https://drive.google.com/file/d/1LprJT5eWDMf2LsYzmDajj5SYnhDiDNbS/view';
+  'https://drive.google.com/file/d/1GiSqP-t34MI-AIj9Ck3xVehzA5MsAGxh/view';
 
 /* Notion page describing what each member role (developer, designer,
  * business) actually does day-to-day. */
 export const ROLE_DETAILS_URL =
   'https://h4i.notion.site/Member-Position-Descriptions-2e22a21bd9e84403a36936876508d7ac';
+
+/* Fall 2026 upperclassmen application form. */
+export const APPLICATIONS_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLScx4HAEDl6uVLlp7Q7UBNGwmRh__2navHvx-5-feElwxnX_TA/viewform?usp=dialog';
+
+/* Fall 2026 coffee chat pairing sign-up. */
+export const COFFEE_CHATS_URL =
+  'https://docs.google.com/forms/d/e/1FAIpQLScIvT8NbD5dQ1Mbx2auRa1mUcc4vrBH2vnRLCU-bOvmiwu9iQ/viewform?usp=dialog';
 
 /* H4I publication on Medium where the team writes long-form
  * project recaps. Linked from the Our Work page footer. */

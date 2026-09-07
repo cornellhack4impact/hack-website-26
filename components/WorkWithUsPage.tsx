@@ -1,37 +1,54 @@
-import React, { useState } from 'react';
-import { ArrowUpRight, Check, ChevronDown, Mail } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ArrowUpRight, Check, Mail } from 'lucide-react';
+import { fixedLayerStyle, useScrollPhases } from '../utils/scroll';
 import {
-  fixedLayerStyle,
-  normalize,
-  useIsMobile,
-  useScrollPhases,
-} from '../utils/scroll';
-import {
+  APPLICATIONS_URL,
+  COFFEE_CHATS_URL,
   CONTACT_EMAIL,
   CROWDFUNDING_URL,
-  INSTAGRAM_URL,
   ROLE_DETAILS_URL,
   SPONSORSHIP_PACKAGE_URL,
 } from '../utils/links';
 
 interface WorkWithUsPageProps {
-  /** Height of the fixed top nav so each layer can clear it on every screen. */
+  /** Height of the fixed top nav so the hero clears it on every screen. */
   navClearance: number;
 }
 
 /* External URLs and contact info live in utils/links.ts so a single
  * change updates every page that references them. */
 
-/* Recruitment milestones for the Students tab. */
-const RECRUITMENT_DATES: { date: string; event: string }[] = [
-  { date: '1/21', event: 'Info Session #1' },
-  { date: '1/22', event: 'Developer Technical Workshop' },
-  { date: '1/25', event: 'Club Fest' },
-  { date: '1/26', event: 'Speed Coffee Chats' },
-  { date: '1/27', event: 'Info Session #2' },
-  { date: '1/28', event: 'Design Consulting at Cornell Mixer' },
-  { date: '1/29', event: 'Design Technical Workshop' },
-  { date: '1/29', event: 'Applications Due' },
+/* Recruitment timelines for the Students tab. */
+const RECRUITMENT_TIMELINES: {
+  title: string;
+  items: { date: string; event: string; detail?: string }[];
+}[] = [
+  {
+    title: 'Upperclassmen',
+    items: [
+      { date: '8/17', event: 'Applications Open' },
+      { date: '8/25', event: 'Info Session #1', detail: '5–6pm · Gates 114' },
+      { date: '8/26', event: 'Design Engineering Workshop', detail: '6–7:30pm · Hollister 314' },
+      { date: '8/28', event: 'Cursor x Coffee Chats Lunch Hour', detail: '12–1:30pm · Gates Lobby' },
+      { date: '8/28', event: 'Mastering the Behavioral Interview', detail: '5–6pm · Room TBD' },
+      { date: '9/1', event: 'Project Teams Fest', detail: '4–6pm · Duffield Atrium' },
+      { date: '9/1', event: 'Developer Technical Workshop', detail: '6–7:30pm · Hollister 314' },
+      { date: '9/2', event: 'Info Session #2 & Speed Coffee Chats', detail: '5–6:30pm · Gates 114' },
+      { date: '9/3', event: 'Applications Due' },
+    ],
+  },
+  {
+    title: 'Freshmen + Transfers',
+    items: [
+      { date: 'Late Sep', event: 'Applications Open' },
+      {
+        date: 'Sep–Oct 15',
+        event: 'Freshmen Mentorship Program',
+        detail: 'More info coming soon',
+      },
+      { date: '10/15', event: 'Applications Due' },
+    ],
+  },
 ];
 
 /* Project lifecycle for the Nonprofits tab. */
@@ -65,7 +82,7 @@ const ROLES: { title: string; description: string; image: string }[] = [
   },
 ];
 
-/* Sponsorship tiers — feature flags determine which copy renders. */
+/* Sponsorship tiers. `highlight: true` adds a "Most popular" badge. */
 const TIERS: {
   name: string;
   price: string;
@@ -77,47 +94,48 @@ const TIERS: {
     name: 'Bronze',
     price: '$500',
     accent: '#A0734F',
-    benefits: ['Brand visibility on website', 'Co-sponsorship opportunity'],
+    benefits: [
+      'Access to resume book',
+      'Publicity on our website',
+      'Host a general body initiative (1 annual event)',
+    ],
   },
   {
     name: 'Silver',
     price: '$1,000',
     accent: '#8E96A6',
     benefits: [
-      'Brand visibility on website and social media',
-      'Co-sponsorship opportunity',
-      'Leverage one event as a platform for your company',
-      'Access to our resume book',
-      'Host initiative toward company recruitment, engagement, and networking objectives',
+      'Access to resume book',
+      'Publicity on our website',
+      'Host a general body initiative (2 annual events)',
+      'Host a campus-wide initiative',
     ],
   },
   {
     name: 'Gold',
-    price: '$1,500',
+    price: '$2,000',
     accent: '#C8A04C',
     highlight: true,
     benefits: [
-      'Brand visibility on website, social media, and LinkedIn',
-      'Co-sponsorship opportunity',
-      'Leverage two events as a platform for your company',
-      'Access to our resume book',
-      'Host initiative toward company recruitment, engagement, and networking objectives',
-      'Host information session, positioning your company as a thought leader and influencer in the community',
+      'Access to resume book',
+      'Publicity on our website',
+      'Host a general body initiative (4 annual events)',
+      'Host a campus-wide initiative',
+      'Feature in our annual report',
     ],
   },
   {
     name: 'Platinum',
-    price: '$2,000',
+    price: '$3,000',
     accent: '#17558E',
     benefits: [
-      'Brand visibility on website, social media, LinkedIn, and merchandise',
-      'Co-sponsorship opportunity',
-      'Leverage two events as a platform for your company',
-      'Access to our resume book',
-      'Host initiative toward company recruitment, engagement, and networking objectives',
-      'Host information session, positioning your company as a thought leader and influencer in the community',
-      'Tailored mentorship program between our student members and your team',
-      "Feature in our annual report, Hack4Impact's most comprehensive publication",
+      'Access to resume book',
+      'Publicity on our website',
+      'Host a general body initiative (unlimited events)',
+      'Host a campus-wide initiative',
+      'Feature in our annual report',
+      'Targeted social media support',
+      'Joint innovation lab',
     ],
   },
 ];
@@ -143,48 +161,82 @@ const AUDIENCES = [
 type Audience = (typeof AUDIENCES)[number]['key'];
 
 /* ============================================================
- * SUB-COMPONENTS
+ * SECTION COMPONENTS — one per audience tab. Each renders in
+ * natural document flow inside the page.
  * ============================================================ */
 
 const StudentsSection: React.FC = () => (
   <div className="space-y-10 md:space-y-14">
-    <div className="grid md:grid-cols-[1.2fr_1fr] gap-8 md:gap-12 items-start">
-      <div>
-        <h2 className="text-[#17558E] text-3xl md:text-4xl font-medium tracking-tight leading-tight mb-4">
-          Students
-        </h2>
-        <p className="text-slate-500 text-base md:text-lg font-light leading-relaxed">
-          Passionate about software and social impact? Looking for a unique and close-knit community? Join us. Our mission gives you a distinct experience to develop technical skills and work with nonprofit clients — applying what you learn to lives that need it.
-        </p>
-        <p className="text-slate-500 text-sm md:text-base font-light leading-relaxed mt-3">
-          The next round of applications will release in Fall 2026.
-        </p>
+    <div>
+      <h2 className="text-[#17558E] text-3xl md:text-4xl font-medium tracking-tight leading-tight mb-4">
+        Students
+      </h2>
+      <p className="text-slate-500 text-base md:text-lg font-light leading-relaxed max-w-3xl">
+        Passionate about software and social impact? Looking for a unique and close-knit community? Join us. Our mission gives you a distinct experience to develop technical skills and work with nonprofit clients — applying what you learn to lives that need it.
+      </p>
+      <p className="text-slate-500 text-sm md:text-base font-light leading-relaxed mt-3 max-w-3xl">
+        Fall 2026 upperclassmen applications are open — due September 3rd at 11:59 PM.
+      </p>
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <a
-          href={INSTAGRAM_URL}
+          href={APPLICATIONS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#17558E] text-white text-sm font-medium hover:bg-[#0F3C6B] transition-colors shadow-sm"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#17558E] text-white text-sm font-medium hover:bg-[#0F3C6B] transition-colors shadow-sm"
         >
-          Stay tuned
+          Fall 2026 Applications
+          <ArrowUpRight className="w-4 h-4" />
+        </a>
+        <a
+          href={COFFEE_CHATS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#17558E]/30 bg-white text-[#17558E] text-sm font-medium hover:bg-[#E8F1F8] transition-colors shadow-sm"
+        >
+          Fall 2026 Coffee Chat Sign Up
           <ArrowUpRight className="w-4 h-4" />
         </a>
       </div>
+    </div>
 
-      {/* Recruitment timeline */}
-      <div className="rounded-2xl bg-white border border-slate-200/80 p-5 md:p-6 shadow-sm">
-        <div className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mb-3">
-          Recruitment Timeline
-        </div>
-        <ul className="space-y-2.5">
-          {RECRUITMENT_DATES.map((item, i) => (
-            <li key={`${item.date}-${i}`} className="flex items-baseline gap-3 text-sm">
-              <span className="text-[#17558E] font-medium tabular-nums w-12 shrink-0">
-                {item.date}
-              </span>
-              <span className="text-slate-700">{item.event}</span>
-            </li>
-          ))}
-        </ul>
+    {/* Full-width twin timeline cards — room to breathe */}
+    <div>
+      <div className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mb-4">
+        Recruitment Timelines
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5 items-start">
+        {RECRUITMENT_TIMELINES.map((section) => (
+          <div
+            key={section.title}
+            className="rounded-2xl bg-white border border-slate-200/80 p-5 md:p-6 shadow-sm"
+          >
+            <h3 className="text-[#17558E] text-lg md:text-xl font-medium tracking-tight mb-4">
+              {section.title}
+            </h3>
+            <ul className="space-y-3">
+              {section.items.map((item, i) => (
+                <li
+                  key={`${section.title}-${item.date}-${i}`}
+                  className="grid grid-cols-[3.25rem_1fr] sm:grid-cols-[3.75rem_1fr] gap-x-3 gap-y-0.5"
+                >
+                  <span className="text-[#17558E] text-sm font-semibold tabular-nums pt-0.5">
+                    {item.date}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-slate-800 text-sm font-medium leading-snug">
+                      {item.event}
+                    </div>
+                    {item.detail && (
+                      <div className="text-slate-400 text-xs mt-0.5 leading-snug">
+                        {item.detail}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
 
@@ -244,9 +296,7 @@ const NonprofitsSection: React.FC = () => (
       </p>
     </div>
 
-    {/* Process timeline — accent panel matches the screenshot's
-        navy "feature" treatment so the lifecycle reads as a distinct
-        moment in the page. */}
+    {/* Process timeline — navy "feature" panel for visual contrast. */}
     <div
       className="rounded-3xl px-5 md:px-10 py-10 md:py-14"
       style={{ background: 'linear-gradient(135deg, #0F3C6B 0%, #17558E 100%)' }}
@@ -341,9 +391,7 @@ const SponsorsSection: React.FC = () => (
         </a>
       </div>
 
-      {/* "Your support matters" — three impact pillars. The wireframe
-          had these as accordions; here they're surfaced as a static
-          card stack to keep the page scannable. */}
+      {/* "Your support matters" — three impact pillars. */}
       <div className="rounded-2xl bg-white border border-slate-200/80 p-5 md:p-6 shadow-sm">
         <div className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mb-4">
           Your Support Matters
@@ -429,15 +477,29 @@ const SponsorsSection: React.FC = () => (
       <div className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mb-4">
         Thank you to our sponsors
       </div>
-      <div className="flex items-center justify-center gap-6 md:gap-10 flex-wrap">
-        <img
-          src="/logos/bloomberg.png"
-          alt="Bloomberg"
-          className="h-8 md:h-10 w-auto object-contain"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
+      <div className="flex items-center justify-center gap-5 md:gap-8 flex-wrap">
+        {[
+          { src: 'bloomberg.png', alt: 'Bloomberg', scale: 1 },
+          { src: 'accenture.png', alt: 'Accenture', scale: 1.05 },
+          { src: 'hrt.png', alt: 'HRT', scale: 0.92 },
+          { src: 'roblox.png', alt: 'Roblox', scale: 1 },
+          { src: 'verkada.png', alt: 'Verkada', scale: 0.95 },
+        ].map((logo) => (
+          <div
+            key={logo.src}
+            className="h-9 md:h-11 w-[6.5rem] md:w-[8.5rem] flex items-center justify-center"
+          >
+            <img
+              src={`/logos/${logo.src}`}
+              alt={logo.alt}
+              className="max-h-full max-w-full object-contain opacity-80"
+              style={{ transform: `scale(${logo.scale})` }}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+        ))}
       </div>
     </div>
 
@@ -464,7 +526,7 @@ const SponsorsSection: React.FC = () => (
         <div>
           <h4 className="text-slate-800 text-base md:text-lg font-medium">Donations</h4>
           <p className="text-slate-500 text-sm font-light mt-1">
-            Direct donations go through Cornell's official Crowdfunding portal.
+            Direct donations go through Cornell's official giving portal.
           </p>
         </div>
         <a
@@ -482,180 +544,159 @@ const SponsorsSection: React.FC = () => (
 );
 
 /* ============================================================
- * MAIN PAGE
+ * MAIN PAGE — natural document flow with a hero, then a sticky
+ * tab bar, then the selected audience's content. The tab bar
+ * stays visible while scrolling so users can switch tabs without
+ * scrolling back to the top.
  * ============================================================ */
 
 const WorkWithUsPage: React.FC<WorkWithUsPageProps> = ({ navClearance }) => {
   const [audience, setAudience] = useState<Audience>('students');
+  const tabBarRef = useRef<HTMLDivElement | null>(null);
 
-  /* Two layered sections (Hero, Content) → one phase transition. */
-  const [scrollPhase1] = useScrollPhases(1);
-  const isMobile = useIsMobile();
-
+  /* Hybrid layout — same idea as the home page:
+   *   - The HERO is a fixed-position layer that crossfades out as
+   *     the user scrolls (Frame 1).
+   *   - Below the layered zone, the tab bar + audience content
+   *     live in natural document flow (Frame 2). No nested scroll
+   *     containers — the page itself just scrolls.
+   *
+   * Tight phase tuning: 0.5vh hold + 1vh fade keeps the hero from
+   * lingering, and the 200vh wrapper makes Frame 2 land in the
+   * viewport as the hero finishes fading — no "vast blank space"
+   * between the two frames. */
+  const [scrollPhase1] = useScrollPhases(1, 0.5, 1);
   const heroOpacity = Math.max(1 - scrollPhase1 * 2, 0);
   const heroTranslateY = -scrollPhase1 * 30;
 
-  const contentFadeIn = normalize(scrollPhase1, 0.55, 0.95);
-  const contentLayerOpacity = contentFadeIn;
-  const contentTranslateY = Math.max(30 - contentFadeIn * 30, 0);
-  const contentIsSettled =
-    contentLayerOpacity >= 0.99 && scrollPhase1 >= 0.99;
-  const contentInteractive = isMobile
-    ? contentIsSettled
-    : contentLayerOpacity > 0.1;
-
-  const heroTopPadding = navClearance + 48;
-  const contentTopPadding = isMobile ? navClearance + 56 : navClearance + 40;
-
-  /* Picking an audience from the hero card sets state AND scrolls
-   * the user past phase 1 so the content layer becomes the active
-   * focus. Without this scroll, the user might tap a card and not
-   * realize they need to keep scrolling to see the content. */
+  /* Tapping an audience card jumps the user past the layered hero
+   * to the tab bar. Without this, the change in selection would be
+   * easy to miss — the content sits below the layered zone. */
   const selectAudience = (a: Audience) => {
     setAudience(a);
-    if (typeof window !== 'undefined') {
-      window.scrollTo({
-        top: window.innerHeight * 3,
-        behavior: 'smooth',
-      });
+    if (typeof window === 'undefined') return;
+    if (tabBarRef.current) {
+      const top = tabBarRef.current.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: top - navClearance - 16, behavior: 'smooth' });
     }
   };
 
   return (
-    <div className="relative w-full bg-[#F6F5F4]" style={{ minHeight: '400vh' }}>
+    <div className="relative w-full bg-[#F6F5F4]">
 
       {/* ============================================================
-          HERO LAYER — title + 3 audience cards.
+          LAYERED HERO ZONE (Frame 1)
+          A 200vh-tall scroll budget for the hero crossfade. The
+          hero is fixed-positioned inside; the tab bar + audience
+          content sit just below this wrapper in natural flow, so
+          they reach the viewport as the hero finishes fading.
           ============================================================ */}
-      <div
-        className="fixed inset-0 z-30 overflow-hidden"
-        style={fixedLayerStyle(heroOpacity, heroTranslateY)}
-      >
+      <div className="relative" style={{ minHeight: '200vh' }}>
         <div
-          className="relative h-full px-4 md:px-8 bg-[#F6F5F4] flex flex-col items-center justify-center overflow-hidden"
-          style={{ paddingTop: `${heroTopPadding}px`, paddingBottom: '32px' }}
+          className="fixed inset-0 z-30 overflow-hidden"
+          style={fixedLayerStyle(heroOpacity, heroTranslateY)}
         >
-          {/* Ambient brand-colored glows */}
           <div
-            className="pointer-events-none absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full opacity-[0.16] blur-3xl"
-            style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }}
-          />
-          <div
-            className="pointer-events-none absolute -bottom-32 -right-24 w-[40rem] h-[40rem] rounded-full opacity-[0.12] blur-3xl"
-            style={{ background: 'radial-gradient(circle, #4CB6C4 0%, transparent 60%)' }}
-          />
+            className="relative h-full px-4 md:px-8 bg-[#F6F5F4] flex flex-col items-center justify-center overflow-hidden"
+            style={{ paddingTop: `${navClearance + 48}px`, paddingBottom: '32px' }}
+          >
+            {/* Ambient brand-colored glows. */}
+            <div
+              className="pointer-events-none absolute -top-32 -left-24 w-[36rem] h-[36rem] rounded-full opacity-[0.16] blur-3xl"
+              style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }}
+            />
+            <div
+              className="pointer-events-none absolute -bottom-32 -right-24 w-[40rem] h-[40rem] rounded-full opacity-[0.12] blur-3xl"
+              style={{ background: 'radial-gradient(circle, #4CB6C4 0%, transparent 60%)' }}
+            />
 
-          <div className="relative max-w-5xl mx-auto w-full text-center">
-            <span className="block text-slate-400 text-xs md:text-sm font-semibold tracking-[0.3em] uppercase mb-4 md:mb-5">
-              Work With Us
-            </span>
-            <h1 className="text-[#17558E] font-medium tracking-tight leading-[0.95]">
-              <span className="block text-4xl md:text-5xl lg:text-6xl">
-                Three ways to
+            <div className="relative max-w-5xl mx-auto w-full text-center">
+              <span className="block text-slate-400 text-xs md:text-sm font-semibold tracking-[0.3em] uppercase mb-4 md:mb-5">
+                Work With Us
               </span>
-              <span
-                className="block text-5xl md:text-7xl lg:text-[5.5rem] italic mt-1 md:mt-2"
-                style={{ fontFamily: "'Playfair Display', serif" }}
-              >
-                make an impact.
-              </span>
-            </h1>
-            <p className="text-slate-500 text-base md:text-lg leading-relaxed font-light max-w-2xl mx-auto mt-5 md:mt-6">
-              Whether you're a student, a nonprofit, or a sponsor — there's a place for you in the work we do.
-            </p>
+              <h1 className="text-[#17558E] font-medium tracking-tight leading-[0.95]">
+                <span className="block text-4xl md:text-5xl lg:text-6xl">
+                  Three ways to
+                </span>
+                <span
+                  className="block text-5xl md:text-7xl lg:text-[5.5rem] italic mt-1 md:mt-2"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  make an impact.
+                </span>
+              </h1>
+              <p className="text-slate-500 text-base md:text-lg leading-relaxed font-light max-w-2xl mx-auto mt-5 md:mt-6">
+                Whether you're a student, a nonprofit, or a sponsor — there's a place for you in the work we do.
+              </p>
 
-            {/* Audience cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 mt-10 md:mt-12 max-w-4xl mx-auto text-left">
-              {AUDIENCES.map((a) => (
+              {/* Audience cards — clicking jumps to that tab. */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 mt-10 md:mt-12 max-w-4xl mx-auto text-left">
+                {AUDIENCES.map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    onClick={() => selectAudience(a.key)}
+                    className="group relative rounded-2xl bg-white border border-slate-200/80 hover:border-[#17558E]/50 hover:shadow-lg p-5 md:p-6 transition-all duration-300 text-left cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <h3 className="text-[#17558E] text-xl md:text-2xl font-medium tracking-tight">
+                        {a.label}
+                      </h3>
+                      <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-[#17558E] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                    </div>
+                    <p className="text-slate-500 text-sm font-light leading-relaxed">
+                      {a.blurb}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================
+          TAB BAR — sits at the top of Frame 2 in normal flow. Not
+          sticky on purpose: the layered hero already gives users a
+          dedicated "pick your audience" moment, so a tab bar that
+          followed them down the page felt over-eager.
+          ============================================================ */}
+      <div ref={tabBarRef} className="px-4 md:px-8 pt-6 md:pt-8 pb-2">
+        <div className="max-w-6xl mx-auto flex justify-center">
+          <div className="inline-flex gap-1 p-1 rounded-full bg-white border border-slate-200/80 shadow-sm overflow-x-auto max-w-full">
+            {AUDIENCES.map((a) => {
+              const active = audience === a.key;
+              return (
                 <button
                   key={a.key}
                   type="button"
-                  onClick={() => selectAudience(a.key)}
-                  className="group relative rounded-2xl bg-white border border-slate-200/80 hover:border-[#17558E]/50 hover:shadow-lg p-5 md:p-6 transition-all duration-300 text-left cursor-pointer"
+                  onClick={() => setAudience(a.key)}
+                  className={
+                    'px-4 md:px-5 py-2 rounded-full text-sm md:text-[15px] font-medium transition-colors duration-200 whitespace-nowrap ' +
+                    (active
+                      ? 'bg-[#17558E] text-white shadow-sm'
+                      : 'text-slate-600 hover:text-[#17558E]')
+                  }
                 >
-                  <div className="flex items-center justify-between gap-3 mb-2">
-                    <h3 className="text-[#17558E] text-xl md:text-2xl font-medium tracking-tight">
-                      {a.label}
-                    </h3>
-                    <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-[#17558E] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                  </div>
-                  <p className="text-slate-500 text-sm font-light leading-relaxed">
-                    {a.blurb}
-                  </p>
+                  {a.label}
                 </button>
-              ))}
-            </div>
-
-            {/* Mobile-only scroll hint */}
-            <div className="md:hidden flex justify-center mt-8">
-              <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                <span className="text-[11px] font-semibold tracking-[0.25em] uppercase">
-                  Pick a path
-                </span>
-                <ChevronDown className="w-5 h-5 animate-bounce" />
-              </div>
-            </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* ============================================================
-          CONTENT LAYER — sticky tab bar over a scrollable section
-          that swaps between Students / Nonprofits / Sponsors.
+          AUDIENCE CONTENT — the section selected by the tabs above.
+          Renders in natural document flow.
           ============================================================ */}
-      <div
-        className="fixed inset-0 z-20 overflow-hidden"
-        style={fixedLayerStyle(contentLayerOpacity, contentTranslateY, contentInteractive)}
-      >
-        <div
-          className="h-full px-4 md:px-8 bg-[#F6F5F4] flex flex-col items-center overflow-hidden"
-          style={{ paddingTop: `${contentTopPadding}px`, paddingBottom: '24px' }}
-        >
-          <div className="max-w-6xl mx-auto w-full flex-1 min-h-0 flex flex-col">
-
-            {/* Tab bar — pill switcher matching the desktop About-page
-                tabs so audience selection feels consistent across the
-                site. Stays visible while the user scrolls the inner
-                content. */}
-            <div className="shrink-0 flex justify-center mb-6 md:mb-8">
-              <div className="inline-flex gap-1 p-1 rounded-full bg-white border border-slate-200/80 shadow-sm overflow-x-auto max-w-full">
-                {AUDIENCES.map((a) => {
-                  const active = audience === a.key;
-                  return (
-                    <button
-                      key={a.key}
-                      type="button"
-                      onClick={() => setAudience(a.key)}
-                      className={
-                        'px-4 md:px-5 py-2 rounded-full text-sm md:text-[15px] font-medium transition-colors duration-200 whitespace-nowrap ' +
-                        (active
-                          ? 'bg-[#17558E] text-white shadow-sm'
-                          : 'text-slate-600 hover:text-[#17558E]')
-                      }
-                    >
-                      {a.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div
-              className={`flex-1 min-h-0 ${
-                contentIsSettled ? 'overflow-y-auto' : 'overflow-hidden'
-              } pr-1`}
-            >
-              {audience === 'students' && <StudentsSection />}
-              {audience === 'nonprofits' && <NonprofitsSection />}
-              {audience === 'sponsors' && <SponsorsSection />}
-
-              {/* Spacer so the last block has breathing room inside
-                  the scroll container. */}
-              <div className="h-6 md:h-10" />
-            </div>
-          </div>
+      <section className="px-4 md:px-8 pt-2 md:pt-4 pb-16 md:pb-24">
+        <div className="max-w-6xl mx-auto">
+          {audience === 'students' && <StudentsSection />}
+          {audience === 'nonprofits' && <NonprofitsSection />}
+          {audience === 'sponsors' && <SponsorsSection />}
         </div>
-      </div>
+      </section>
     </div>
   );
 };

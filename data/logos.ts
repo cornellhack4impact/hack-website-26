@@ -38,5 +38,11 @@ export const ALUMNI_LOGOS: string[] = [
   'ycombinator.png',
   'bcg.png',
   'tesla.png',
-  'houlihan-lokey.png'
+  'houlihan-lokey.png',
+  'cohere.png',
+  'autodesk.png',
+  'hms.png',
+  'brex.png',
+  'mckinsey.png',
+  'visa.png',
 ];
