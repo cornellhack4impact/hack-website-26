@@ -87,46 +87,75 @@ const AlumniLogoWall: React.FC = () => {
   }, [initialSlots, initialQueue]);
 
   /* Cycle: every tick, pop the next off-screen logo from the queue,
-   * fade out a random slot, then swap in the queued logo and push
-   * the displaced logo to the back of the queue. */
+   * preload it, fade out a random slot, then swap in the queued logo
+   * and push the displaced logo to the back of the queue. */
   useEffect(() => {
     if (ALUMNI_LOGOS.length <= totalCells) return; // nothing waiting
     let cancelled = false;
+    let inFlight = false;
     let swapTimeout: ReturnType<typeof setTimeout> | undefined;
 
-    const tick = () => {
-      if (queueRef.current.length === 0) return;
-      // Avoid picking a slot that's currently fading or whose value
-      // we'd be about to re-insert (would no-op visually).
+    const preload = (src: string) =>
+      new Promise<void>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+        img.src = `/logos/${src}`;
+      });
+
+    const tick = async () => {
+      if (inFlight || queueRef.current.length === 0) return;
+      const incoming = queueRef.current[0];
+      if (!incoming) return;
+
+      inFlight = true;
+      // Wait for the next logo so the fade doesn't land on a blank slot.
+      await preload(incoming);
+      if (cancelled || queueRef.current[0] !== incoming) {
+        inFlight = false;
+        return;
+      }
+
       const slotIdx = Math.floor(Math.random() * totalCells);
       setFadingIdx(slotIdx);
 
       swapTimeout = setTimeout(() => {
-        if (cancelled) return;
-        if (queueRef.current.length === 0) {
-          setFadingIdx(null);
+        if (cancelled) {
+          inFlight = false;
           return;
         }
-        const incoming = queueRef.current.shift()!;
+        if (queueRef.current.length === 0) {
+          setFadingIdx(null);
+          inFlight = false;
+          return;
+        }
+        const next = queueRef.current.shift()!;
         // Sanity: if the incoming logo is somehow already on screen,
         // skip the swap and re-queue it. Prevents duplicate display
         // even if state ever drifts out of sync.
-        if (slotsRef.current.includes(incoming)) {
-          queueRef.current.push(incoming);
+        if (slotsRef.current.includes(next)) {
+          queueRef.current.push(next);
           setFadingIdx(null);
+          inFlight = false;
           return;
         }
         const displaced = slotsRef.current[slotIdx];
         const newSlots = [...slotsRef.current];
-        newSlots[slotIdx] = incoming;
+        newSlots[slotIdx] = next;
         slotsRef.current = newSlots;
         if (displaced) queueRef.current.push(displaced);
         setSlots(newSlots);
-        setFadingIdx(null);
+        // Keep faded for one frame, then fade the new logo in.
+        requestAnimationFrame(() => {
+          if (!cancelled) setFadingIdx(null);
+          inFlight = false;
+        });
       }, FADE_MS);
     };
 
-    const interval = setInterval(tick, CYCLE_MS);
+    const interval = setInterval(() => {
+      void tick();
+    }, CYCLE_MS);
     return () => {
       cancelled = true;
       clearInterval(interval);
