@@ -23,14 +23,14 @@ export type Partner = {
 
 export const PARTNERS: Partner[] = [
   { name: 'Lagos Food Bank Initiative', logo: 'lagos.jpg' },
-  { name: 'MedExplain', logo: 'medexplain.png' },
+  { name: 'MedExplain', logo: 'medexplain.jpg' },
   { name: 'MedSim', logo: 'medsim.png' },
   { name: 'EDGI', logo: 'edgi.jpg' },
   { name: 'WASH', logo: 'wash.jpg' },
   { name: 'OKB', logo: 'okb.jpg' },
   { name: 'Eco', logo: 'Eco.svg' },
   { name: 'PPAC', logo: 'ppac.png' },
-  { name: 'Hudson Valley Textile Project', logo: 'hvtp.png', padding: 'p-3.5' },
+  { name: 'Hudson Valley Textile Project', logo: 'hvtp.jpg', padding: 'p-3.5' },
   { name: "Anabel's Grocery", logo: 'anabels.png' },
   { name: 'Earth Law Center', logo: 'earthlaw.png' },
   { name: 'Ithaca Community', logo: 'ithaca.png' },

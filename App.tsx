@@ -67,6 +67,10 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoLoadError, setLogoLoadError] = useState(false);
   const [navHeight, setNavHeight] = useState(96);
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1280,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+  }));
   /* Tracks whether the user has scrolled past the very top of the
    * page. Used to give the desktop nav a blurred background so
    * content scrolling underneath doesn't show through awkwardly. */
@@ -101,6 +105,20 @@ const App: React.FC = () => {
     setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
+
+  /* ----------------------------------------------------------------
+   * Track viewport size so the hero copy band and globe offset can
+   * adapt — short / narrow screens need the globe lower so headlines
+   * never collide with the sphere.
+   * ---------------------------------------------------------------- */
+  useEffect(() => {
+    const update = () => {
+      setViewport({ width: window.innerWidth, height: window.innerHeight });
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   /* ----------------------------------------------------------------
    * Render the annual report cover (PDF page 1) to a data URL so it
@@ -196,8 +214,18 @@ const App: React.FC = () => {
 
   // Globe translateY (vh): starts low under the hero text, slides up
   // to sit centered behind the compact header as phase 1 completes.
-  const globeStartY = 35;
-  const globeEndY = 16;
+  // Short / mobile viewports push the globe further down so the
+  // crest clears the hero copy band.
+  const isMobileViewport = viewport.width < 768;
+  const isShortViewport = viewport.height < 780;
+  const globeStartY = isMobileViewport
+    ? isShortViewport
+      ? 54
+      : 48
+    : isShortViewport
+      ? 46
+      : 44;
+  const globeEndY = isMobileViewport ? 22 : 18;
   const globeTranslateY = globeStartY - scrollProgress * (globeStartY - globeEndY);
 
   // Hero text: full opacity at start, gone by halfway through phase 1.
@@ -217,13 +245,20 @@ const App: React.FC = () => {
   const scrollIndicatorOpacity = Math.max(1 - scrollProgress * 3, 0);
   const postGlobeArrowOpacity = scrollPhase2 === 0 ? Math.max((scrollProgress - 0.78) * 4.5, 0) : 0;
 
-  const isMobileViewport = typeof window !== 'undefined' && window.innerWidth < 768;
   const navTopOffset = isMobileViewport ? 8 : 12; // matches `top-2 md:top-3`
   const navClearance = navHeight + navTopOffset;
 
   // Padding offsets so fixed section content clears the full nav area.
-  const contentTopPadding = Math.max(navClearance + 24, 120);
+  const contentTopPadding = Math.max(navClearance + 16, isShortViewport ? 88 : 112);
   const compactHeaderTop = navClearance + 36;
+  // Keep all hero copy inside the upper band above the globe crest.
+  const heroBandBottomVh = isMobileViewport
+    ? isShortViewport
+      ? 56
+      : 52
+    : isShortViewport
+      ? 52
+      : 50;
 
   // Phase 3 — Who We Are hands off to Projects without overlap.
   const whoWeAreFadeOut = 1 - normalize(scrollPhase3, 0.1, 0.58);
@@ -344,6 +379,7 @@ const App: React.FC = () => {
                 <img
                   src="/logos/logo.png"
                   alt="Logo"
+                  fetchPriority="high"
                   className="h-11 md:h-14 w-auto max-w-[240px] md:max-w-[340px] object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
                   onError={() => setLogoLoadError(true)}
                 />
@@ -479,42 +515,50 @@ const App: React.FC = () => {
       </div>
 
       {/* ============================================================
-          SECTION 1 (hero title) — large landing copy. Fades out
-          during phase 1. Pointer events disabled when invisible so
-          clicks pass through to the globe layer.
+          SECTION 1 (hero title) — large landing copy. Kept in a
+          fixed upper band above the globe crest so headlines never
+          collide with the sphere at any viewport size. Fades out
+          during phase 1.
           ============================================================ */}
       <div
-        className="fixed inset-0 z-20 flex flex-col items-center justify-start text-center px-4"
+        className="fixed inset-x-0 z-20 flex flex-col items-center text-center px-4"
         style={{
           opacity: heroOpacity,
-          paddingTop: `${contentTopPadding}px`,
+          top: `${contentTopPadding}px`,
+          bottom: `${heroBandBottomVh}vh`,
           pointerEvents: heroOpacity <= 0 ? 'none' : 'auto',
         }}
       >
-        <div className="mb-6">
-          <h1 className="text-[clamp(1.35rem,7.2vw,4.4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-tight whitespace-nowrap">
-            Tech For Social Good.
-          </h1>
-          <h1
-            className="text-[clamp(1.55rem,8vw,4.4rem)] md:text-7xl font-medium text-[#17558E] leading-tight mt-1 md:mt-2 whitespace-nowrap italic tracking-tight"
-            style={{ fontFamily: "'Playfair Display', serif" }}
+        <div className="flex h-full w-full max-w-5xl flex-col items-center justify-center min-h-0">
+          <div className={`shrink-0 ${isShortViewport ? 'mb-3' : 'mb-5 md:mb-6'}`}>
+            <h1 className="text-[clamp(1.2rem,6.2vw,4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-[1.05] whitespace-nowrap">
+              Tech For Social Good.
+            </h1>
+            <h1
+              className="text-[clamp(1.35rem,6.8vw,4rem)] md:text-7xl font-medium text-[#17558E] leading-[1.05] mt-1 md:mt-2 whitespace-nowrap italic tracking-tight"
+              style={{ fontFamily: "'Playfair Display', serif" }}
+            >
+              Built by Students.
+            </h1>
+          </div>
+
+          <p
+            className={`text-slate-500 max-w-2xl md:max-w-3xl text-sm md:text-base leading-relaxed font-light shrink-0 ${
+              isShortViewport ? 'mb-4' : 'mb-6 md:mb-8'
+            }`}
           >
-            Built by Students.
-          </h1>
+            Building socially impactful tools to empower you to focus on what really matters.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => goToView('work')}
+            className="group shrink-0 flex items-center gap-2 px-7 py-2.5 md:px-8 md:py-3 rounded-full bg-white/60 border border-white/80 text-slate-700 hover:bg-white/80 transition-all duration-300 backdrop-blur-md cursor-pointer shadow-sm"
+          >
+            <span className="text-sm md:text-lg font-light tracking-wide">See Our Work</span>
+            <ArrowUpRight className="w-4 h-4 md:w-5 md:h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </button>
         </div>
-
-        <p className="text-slate-500 max-w-3xl text-sm md:text-base leading-relaxed mb-8 font-light -mt-1">
-          Building socially impactful tools to empower you to focus on what really matters.
-        </p>
-
-        <button
-          type="button"
-          onClick={() => goToView('work')}
-          className="group flex items-center gap-2 px-8 py-3 rounded-full bg-white/60 border border-white/80 text-slate-700 hover:bg-white/80 transition-all duration-300 backdrop-blur-md cursor-pointer shadow-sm"
-        >
-          <span className="text-base md:text-lg font-light tracking-wide">See Our Work</span>
-          <ArrowUpRight className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-        </button>
       </div>
 
       {/* Primary bouncing scroll indicator — visible on load, fades
@@ -570,7 +614,7 @@ const App: React.FC = () => {
                     ['--hover-offset' as string]: card.offsetX,
                   }}
                 >
-                  <img src={card.img} alt={card.label} className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={card.img} alt={card.label} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-0 right-0 text-center text-white leading-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
                     <span className="block text-lg md:text-xl font-medium italic tracking-wide">{card.label}</span>

@@ -12,11 +12,15 @@ const ITHACA = {
 
 // Destinations with specific distinct colors
 const DESTINATIONS = [
-  { lat: -9.1900, lng: -75.0152, label: "Peru", color: "#FF6B6B" },      // Pastel Red
-  { lat: 39.5501, lng: -105.7821, label: "Colorado", color: "#FECA57" }, // Pastel Yellow
-  { lat: 7.9465, lng: -1.0232, label: "Ghana", color: "#FF9FF3" },       // Pastel Pink
-  { lat: 9.0820, lng: 8.6753, label: "Nigeria", color: "#A55EEA" },      // Purple
-  { lat: 46.8625, lng: 103.8467, label: "Mongolia", color: "#00D2D3" }   // Cyan
+  { lat: -9.1900, lng: -75.0152, label: "Peru", color: "#FF6B6B" },           // Pastel Red
+  { lat: 39.5501, lng: -105.7821, label: "Colorado", color: "#FECA57" },      // Pastel Yellow
+  { lat: 7.9465, lng: -1.0232, label: "Ghana", color: "#FF9FF3" },            // Pastel Pink
+  { lat: 9.0820, lng: 8.6753, label: "Nigeria", color: "#A55EEA" },           // Purple
+  { lat: 46.8625, lng: 103.8467, label: "Mongolia", color: "#00D2D3" },       // Cyan
+  { lat: 20.5937, lng: 78.9629, label: "India", color: "#54A0FF" },           // Soft Blue
+  { lat: 38.9072, lng: -77.0369, label: "Washington, D.C.", color: "#FF9F43" }, // Soft Orange
+  { lat: -1.2921, lng: 36.8219, label: "Kenya", color: "#26DE81" },           // Soft Green
+  { lat: -4.0383, lng: 21.7587, label: "DRC", color: "#FD79A8" },             // Rose
 ];
 
 // Combine all points for markers (rings/labels)
@@ -155,6 +159,15 @@ const CustomGlobe: React.FC<CustomGlobeProps> = ({ scrollProgress = 0 }) => {
         labelColor={() => '#FFFFFF'}
         // Make Ithaca's label larger
         labelSize={(d: any) => d.label === "Cornell University" ? 2.5 : 1.5}
+        // Keep Cornell's label above its marker so it doesn't collide
+        // with nearby destinations (e.g. Washington, D.C.).
+        labelDotOrientation={(d: any) =>
+          d.label === "Cornell University"
+            ? "top"
+            : d.label === "Washington, D.C."
+              ? "bottom"
+              : "right"
+        }
         labelDotRadius={0.6}
         labelResolution={2}
         labelAltitude={0.02}
