@@ -3,7 +3,7 @@ import CustomGlobe from './components/CustomGlobe';
 import AboutPage from './components/AboutPage';
 import OurWorkPage from './components/OurWorkPage';
 import WorkWithUsPage from './components/WorkWithUsPage';
-import { ArrowUpRight, ArrowDown, Menu, X, ChevronRight, Mail, Linkedin, Instagram } from 'lucide-react';
+import { ArrowUpRight, ArrowDown, Menu, X, ChevronLeft, ChevronRight, Mail, Linkedin, Instagram } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { fixedLayerStyle, normalize, useScrollPhases } from './utils/scroll';
 import {
@@ -30,6 +30,33 @@ const FlipBook = lazy(() => import('./components/FlipBook'));
 
 const HERO_BACKGROUND = '#F6F5F4';
 type SiteView = 'home' | 'about' | 'work' | 'engage';
+
+const FEATURED_PROJECTS = [
+  {
+    semester: 'Spring 2025',
+    title: 'AI-driven virtual patients for medical training',
+    description:
+      'We partnered with MedSimAI to redesign their AI-driven virtual patient platform, adding onboarding flows, scheduling and difficulty-tiered cases so medical students can rehearse clinical conversations at their own pace.',
+    icon: '/partners/medsim.png',
+    link: 'https://medium.com/cornellh4i/medsimai-enhancing-medical-student-communication-through-ai-driven-virtual-patients-f4a487fe0de1',
+  },
+  {
+    semester: 'Fall 2023',
+    title: 'Making environmental violation data accessible',
+    description:
+      "We worked with the Environmental Data & Governance Initiative to replace the EPA's outdated PDF report cards with an interactive, county-level mapping tool, surfacing violation data through clickable maps and clean visualizations for journalists, educators, and residents.",
+    icon: '/partners/edgi.jpg',
+    link: 'https://medium.com/cornellh4i/edgi-improving-access-to-environmental-violation-data-1458ff1fde88',
+  },
+  {
+    semester: 'Fall 2023',
+    title: 'Connecting patients with psychiatrists in Ghana',
+    description:
+      'We built a telehealth platform for OKB Hope Foundation that connects mental health patients with psychiatrists in Ghana, through messaging, virtual appointments, and educational outreach.',
+    icon: '/partners/okb.jpg',
+    link: 'https://medium.com/cornellh4i/bridging-the-gap-connecting-patients-with-psychiatrists-and-demystifying-mental-health-in-ghana-4e9f2c076373',
+  },
+] as const;
 
 /* Top-nav configuration. Every item is now wired to a view. */
 const NAV_ITEMS: { label: string; view?: SiteView }[] = [
@@ -67,6 +94,8 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoLoadError, setLogoLoadError] = useState(false);
   const [navHeight, setNavHeight] = useState(96);
+  const [featuredProjectIdx, setFeaturedProjectIdx] = useState(0);
+  const featuredTouchStartX = useRef<number | null>(null);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 1280,
     height: typeof window !== 'undefined' ? window.innerHeight : 800,
@@ -295,7 +324,19 @@ const App: React.FC = () => {
   // so large headings/cards never touch the header area.
   const projectsTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
   const reportTopPadding = isMobileViewport ? navClearance + 72 : navClearance + 48;
-  const projectsBottomPadding = isMobileViewport ? 'calc(96px + env(safe-area-inset-bottom))' : '48px';
+  const projectsBottomPadding = isMobileViewport ? 'calc(48px + env(safe-area-inset-bottom))' : '48px';
+  const featuredProjectCount = FEATURED_PROJECTS.length;
+  const activeFeaturedProject = FEATURED_PROJECTS[featuredProjectIdx]!;
+  const canGoPrevFeatured = featuredProjectIdx > 0;
+  const canGoNextFeatured = featuredProjectIdx < featuredProjectCount - 1;
+  const goPrevFeatured = () => {
+    if (!canGoPrevFeatured) return;
+    setFeaturedProjectIdx((idx) => Math.max(0, idx - 1));
+  };
+  const goNextFeatured = () => {
+    if (!canGoNextFeatured) return;
+    setFeaturedProjectIdx((idx) => Math.min(featuredProjectCount - 1, idx + 1));
+  };
 
   /* Lazy-mount the FlipBook + stagger-in the section's elements
    * once Get Involved starts to appear. */
@@ -647,51 +688,30 @@ const App: React.FC = () => {
         style={fixedLayerStyle(projectsLayerOpacity, projectsTranslateY, projectsInteractive)}
       >
         <div
-          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center ${isMobileViewport ? (projectsIsSettled ? 'overflow-y-auto' : 'overflow-hidden') : 'overflow-y-auto'}`}
+          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start justify-center ${isMobileViewport ? 'overflow-hidden' : 'overflow-y-auto'}`}
           style={{ paddingTop: `${projectsTopPadding}px`, paddingBottom: projectsBottomPadding }}
         >
           <div className="max-w-6xl mx-auto w-full">
             <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-wide mb-3 md:mb-4 project-card-animate">
               Powering Real Change
             </h2>
-            <p className="text-slate-500 text-sm md:text-base font-light leading-relaxed max-w-2xl mb-10 md:mb-14 project-card-animate">
+            <p className="text-slate-500 text-sm md:text-base font-light leading-relaxed max-w-2xl mb-6 md:mb-14 project-card-animate">
               We turn vision into reality for nonprofits and socially impactful organizations, building the software that powers real change.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-10 md:mb-14">
-              {[
-                {
-                  semester: 'Spring 2025',
-                  title: 'AI-driven virtual patients for medical training',
-                  description:
-                    'We partnered with MedSimAI to redesign their AI-driven virtual patient platform, adding onboarding flows, scheduling and difficulty-tiered cases so medical students can rehearse clinical conversations at their own pace.',
-                  icon: '/partners/medsim.png',
-                  link: 'https://medium.com/cornellh4i/medsimai-enhancing-medical-student-communication-through-ai-driven-virtual-patients-f4a487fe0de1',
-                },
-                {
-                  semester: 'Fall 2023',
-                  title: 'Making environmental violation data accessible',
-                  description:
-                    "We worked with the Environmental Data & Governance Initiative to replace the EPA's outdated PDF report cards with an interactive, county-level mapping tool, surfacing violation data through clickable maps and clean visualizations for journalists, educators, and residents.",
-                  icon: '/partners/edgi.jpg',
-                  link: 'https://medium.com/cornellh4i/edgi-improving-access-to-environmental-violation-data-1458ff1fde88',
-                },
-                {
-                  semester: 'Fall 2023',
-                  title: 'Connecting patients with psychiatrists in Ghana',
-                  description:
-                    'We built a telehealth platform for OKB Hope Foundation that connects mental health patients with psychiatrists in Ghana, through messaging, virtual appointments, and educational outreach.',
-                  icon: '/partners/okb.jpg',
-                  link: 'https://medium.com/cornellh4i/bridging-the-gap-connecting-patients-with-psychiatrists-and-demystifying-mental-health-in-ghana-4e9f2c076373',
-                },
-              ].map((project, idx) => (
+            {/* Desktop: three-up grid. Mobile: one-at-a-time carousel
+             * so this fixed-height scroll phase never nests a second
+             * vertical scroller. */}
+            <div className="hidden md:grid grid-cols-3 gap-8 mb-14">
+              {FEATURED_PROJECTS.map((project, idx) => (
                 <div
-                  key={idx}
-                  className="group flex flex-col justify-between bg-white/50 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-6 md:p-7 hover:bg-white/80 hover:border-slate-300 hover:shadow-lg transition-all duration-300 project-card-animate"
+                  key={project.title}
+                  className="group flex flex-col justify-between bg-white/50 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-7 hover:bg-white/80 hover:border-slate-300 hover:shadow-lg transition-all duration-300 project-card-animate"
+                  style={{ transitionDelay: `${idx * 80}ms` }}
                 >
                   <div>
                     <span className="text-slate-400 text-xs font-medium tracking-widest uppercase">{project.semester}</span>
-                    <h3 className="text-slate-800 text-lg md:text-xl font-medium leading-snug mt-2 mb-4">{project.title}</h3>
+                    <h3 className="text-slate-800 text-xl font-medium leading-snug mt-2 mb-4">{project.title}</h3>
                     <p className="text-slate-500 text-sm font-light leading-relaxed">{project.description}</p>
                   </div>
                   <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
@@ -708,6 +728,88 @@ const App: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div
+              className="md:hidden mb-8 project-card-animate"
+              onTouchStart={(e) => {
+                featuredTouchStartX.current = e.changedTouches[0]?.clientX ?? null;
+              }}
+              onTouchEnd={(e) => {
+                const startX = featuredTouchStartX.current;
+                featuredTouchStartX.current = null;
+                if (startX == null) return;
+                const deltaX = (e.changedTouches[0]?.clientX ?? startX) - startX;
+                if (Math.abs(deltaX) < 40) return;
+                if (deltaX < 0) goNextFeatured();
+                else goPrevFeatured();
+              }}
+            >
+              <div className="flex flex-col justify-between bg-white/50 backdrop-blur-sm border border-slate-200/80 rounded-2xl p-6">
+                <div>
+                  <span className="text-slate-400 text-xs font-medium tracking-widest uppercase">
+                    {activeFeaturedProject.semester}
+                  </span>
+                  <h3 className="text-slate-800 text-lg font-medium leading-snug mt-2 mb-4">
+                    {activeFeaturedProject.title}
+                  </h3>
+                  <p className="text-slate-500 text-sm font-light leading-relaxed">
+                    {activeFeaturedProject.description}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+                  <a
+                    href={activeFeaturedProject.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group/link flex items-center gap-1.5 text-slate-600 text-sm font-medium hover:text-[#17558E] transition-colors"
+                  >
+                    Learn more
+                    <ChevronRight className="w-4 h-4 group-hover/link:translate-x-0.5 transition-transform" />
+                  </a>
+                  {activeFeaturedProject.icon && (
+                    <img
+                      src={activeFeaturedProject.icon}
+                      alt=""
+                      className="w-9 h-9 rounded-lg object-contain opacity-60"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mt-5">
+                <span className="text-slate-400 text-xs tracking-wide tabular-nums">
+                  {featuredProjectIdx + 1} / {featuredProjectCount}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="Previous project"
+                    onClick={goPrevFeatured}
+                    disabled={!canGoPrevFeatured}
+                    className={`p-2 rounded-lg transition-colors ${
+                      canGoPrevFeatured
+                        ? 'text-slate-700 hover:bg-slate-200/70'
+                        : 'text-slate-300 cursor-default'
+                    }`}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Next project"
+                    onClick={goNextFeatured}
+                    disabled={!canGoNextFeatured}
+                    className={`p-2 rounded-lg transition-colors ${
+                      canGoNextFeatured
+                        ? 'text-slate-700 hover:bg-slate-200/70'
+                        : 'text-slate-300 cursor-default'
+                    }`}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-center project-card-animate">

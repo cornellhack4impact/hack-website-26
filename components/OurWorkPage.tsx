@@ -78,16 +78,19 @@ const FeaturedProjectCard: React.FC<{ project: Project }> = ({ project }) => {
         <span className="text-slate-400 text-[11px] font-semibold tracking-[0.2em] uppercase mt-3 md:mt-4">
           {project.semester}
         </span>
-        <a
-          href={project.link ?? '#'}
-          {...(project.link
-            ? { target: '_blank', rel: 'noopener noreferrer' }
-            : { onClick: (e: React.MouseEvent) => e.preventDefault() })}
-          className="inline-flex items-center gap-1 text-[#17558E] text-sm font-medium hover:underline self-start mt-auto pt-4"
-        >
-          View project
-          <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-        </a>
+        {project.link ? (
+          <a
+            href={project.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[#17558E] text-sm font-medium hover:underline self-start mt-auto pt-4"
+          >
+            View project
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </a>
+        ) : (
+          <div className="mt-auto pt-4" aria-hidden />
+        )}
       </div>
 
       <div className="relative aspect-[16/9] md:aspect-[16/10] rounded-2xl bg-gradient-to-br from-[#E8F1F8] via-[#F6F5F4] to-[#E0EEF1] border border-slate-200/80 overflow-hidden">

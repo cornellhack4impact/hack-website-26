@@ -43,6 +43,7 @@ export const PROJECTS: Project[] = [
     description:
       'A platform that translates complex medical information into plain language so patients can understand their care and advocate for themselves.',
     image: '/projects/medexplain.png',
+    link: 'https://medium.com/cornellh4i/medexplain-health-simplifying-content-management-for-health-equity-79939cb8ce39',
     status: 'active',
   },
   {
@@ -51,6 +52,7 @@ export const PROJECTS: Project[] = [
     description:
       'Building software with our partner to support environmental advocacy, community organizing, and the reporting that drives accountable action.',
     image: '/projects/greenzone.png',
+    link: 'https://medium.com/cornellh4i/greenzone-empowering-data-informed-mongolian-rangeland-decisions-02a44aa6c51e',
     status: 'active',
   },
   {
@@ -67,6 +69,7 @@ export const PROJECTS: Project[] = [
     description:
       'We empowered Lagos Food Bank to serve over 2,000,000 beneficiaries by streamlining their operations. Our system simplified volunteer sign-ups and provided comprehensive tools for tracking events and the work of 24,000+ volunteers.',
     image: '/projects/lagos.png',
+    link: 'https://medium.com/cornellh4i/transforming-lagos-food-bank-initiatives-approach-to-volunteer-management-e81315148752',
     status: 'past',
   },
 ];
