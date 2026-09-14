@@ -98,7 +98,9 @@ const App: React.FC = () => {
   const featuredTouchStartX = useRef<number | null>(null);
   const [viewport, setViewport] = useState(() => ({
     width: typeof window !== 'undefined' ? window.innerWidth : 1280,
-    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+    height: typeof window !== 'undefined'
+      ? (window.visualViewport?.height ?? window.innerHeight)
+      : 800,
   }));
   /* Tracks whether the user has scrolled past the very top of the
    * page. Used to give the desktop nav a blurred background so
@@ -137,16 +139,21 @@ const App: React.FC = () => {
 
   /* ----------------------------------------------------------------
    * Track viewport size so the hero copy band and globe offset can
-   * adapt — short / narrow screens need the globe lower so headlines
-   * never collide with the sphere.
+   * adapt — mobile raises the globe into frame; short screens tighten
+   * spacing so headlines never collide with the sphere.
    * ---------------------------------------------------------------- */
   useEffect(() => {
     const update = () => {
-      setViewport({ width: window.innerWidth, height: window.innerHeight });
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      setViewport({ width: window.innerWidth, height });
     };
     update();
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    window.visualViewport?.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('resize', update);
+    };
   }, []);
 
   /* ----------------------------------------------------------------
@@ -243,18 +250,21 @@ const App: React.FC = () => {
 
   // Globe translateY (vh): starts low under the hero text, slides up
   // to sit centered behind the compact header as phase 1 completes.
-  // Short / mobile viewports push the globe further down so the
-  // crest clears the hero copy band.
+  // Mobile keeps more of the sphere in-frame so the landing view
+  // isn't a huge empty band between the CTA and the crest.
   const isMobileViewport = viewport.width < 768;
   const isShortViewport = viewport.height < 780;
+  const isVeryShortViewport = viewport.height < 700;
   const globeStartY = isMobileViewport
-    ? isShortViewport
-      ? 54
-      : 48
+    ? isVeryShortViewport
+      ? 34
+      : isShortViewport
+        ? 32
+        : 30
     : isShortViewport
       ? 46
       : 44;
-  const globeEndY = isMobileViewport ? 22 : 18;
+  const globeEndY = isMobileViewport ? 18 : 18;
   const globeTranslateY = globeStartY - scrollProgress * (globeStartY - globeEndY);
 
   // Hero text: full opacity at start, gone by halfway through phase 1.
@@ -281,10 +291,14 @@ const App: React.FC = () => {
   const contentTopPadding = Math.max(navClearance + 16, isShortViewport ? 88 : 112);
   const compactHeaderTop = navClearance + 36;
   // Keep all hero copy inside the upper band above the globe crest.
+  // Mobile band ends lower (smaller bottom inset) so copy sits closer
+  // to the raised globe instead of floating in empty space.
   const heroBandBottomVh = isMobileViewport
-    ? isShortViewport
-      ? 56
-      : 52
+    ? isVeryShortViewport
+      ? 50
+      : isShortViewport
+        ? 48
+        : 46
     : isShortViewport
       ? 52
       : 50;
@@ -570,8 +584,8 @@ const App: React.FC = () => {
           pointerEvents: heroOpacity <= 0 ? 'none' : 'auto',
         }}
       >
-        <div className="flex h-full w-full max-w-5xl flex-col items-center justify-center min-h-0">
-          <div className={`shrink-0 ${isShortViewport ? 'mb-3' : 'mb-5 md:mb-6'}`}>
+        <div className={`flex h-full w-full max-w-5xl flex-col items-center min-h-0 ${isMobileViewport ? 'justify-end pb-1' : 'justify-center'}`}>
+          <div className={`shrink-0 ${isMobileViewport || isShortViewport ? 'mb-3' : 'mb-5 md:mb-6'}`}>
             <h1 className="text-[clamp(1.2rem,6.2vw,4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-[1.05] whitespace-nowrap">
               Tech For Social Good.
             </h1>
@@ -585,7 +599,7 @@ const App: React.FC = () => {
 
           <p
             className={`text-slate-500 max-w-2xl md:max-w-3xl text-sm md:text-base leading-relaxed font-light shrink-0 ${
-              isShortViewport ? 'mb-4' : 'mb-6 md:mb-8'
+              isMobileViewport || isShortViewport ? 'mb-4' : 'mb-6 md:mb-8'
             }`}
           >
             Building socially impactful tools to empower you to focus on what really matters.
@@ -854,8 +868,11 @@ const App: React.FC = () => {
         style={fixedLayerStyle(reportLayerOpacity, reportTranslateY, reportInteractive)}
       >
         <div
-          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start md:items-center justify-center ${isMobileViewport ? (reportIsSettled ? 'overflow-y-auto' : 'overflow-hidden') : 'overflow-y-auto'}`}
-          style={{ paddingTop: `${reportTopPadding}px`, paddingBottom: '24px' }}
+          className={`h-full px-4 md:px-8 bg-[#F6F5F4] flex items-start md:items-center justify-center ${isMobileViewport ? 'overflow-hidden' : 'overflow-y-auto'}`}
+          style={{
+            paddingTop: `${isMobileViewport ? navClearance + 40 : reportTopPadding}px`,
+            paddingBottom: isMobileViewport ? 'calc(16px + env(safe-area-inset-bottom))' : '24px',
+          }}
         >
           {/* Ambient brand-colored glows — purely decorative. */}
           <div className="pointer-events-none absolute -top-20 -left-20 w-[40rem] h-[40rem] rounded-full opacity-[0.18] blur-3xl" style={{ background: 'radial-gradient(circle, #17558E 0%, transparent 60%)' }} />
@@ -863,17 +880,19 @@ const App: React.FC = () => {
 
           <div className="relative max-w-6xl mx-auto w-full">
             {/* Section header */}
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6 md:mb-8 annual-report-section">
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-1.5 md:gap-2 mb-4 md:mb-8 annual-report-section">
               <div>
-                <h2 className="text-[#17558E] text-3xl md:text-5xl font-medium tracking-wide leading-tight">Get Involved</h2>
+                <h2 className="text-[#17558E] text-2xl md:text-5xl font-medium tracking-wide leading-tight">Get Involved</h2>
               </div>
-              <p className="text-slate-500 text-sm md:text-base font-light max-w-sm md:text-right">
+              <p className="text-slate-500 text-xs md:text-base font-light max-w-sm md:text-right">
                 Read our year in review, fuel the next chapter, or stay connected.
               </p>
             </div>
 
-            {/* 12-col grid: report card (7) + action stack (5) */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 md:gap-7 items-stretch">
+            {/* 12-col grid: report card (7) + action stack (5).
+             * Mobile packs into one viewport (no nested scroll):
+             * shorter report + 2×2 action grid. */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-7 items-stretch">
 
               {/* --- Annual Report hero card ------------------------
                    Opens the fullscreen flipbook modal on click. Uses
@@ -881,25 +900,25 @@ const App: React.FC = () => {
                    hover of the whole card. */}
               <button
                 onClick={() => { setShowFlipBook(true); setReportOpen(true); }}
-                className="group relative md:col-span-7 annual-report-section text-left rounded-3xl overflow-hidden cursor-pointer min-h-[260px] md:min-h-[380px]"
+                className="group relative md:col-span-7 annual-report-section text-left rounded-2xl md:rounded-3xl overflow-hidden cursor-pointer min-h-0 md:min-h-[380px]"
                 style={{ background: 'linear-gradient(135deg, #0F3C6B 0%, #17558E 55%, #4CB6C4 120%)' }}
               >
                 {/* Decorative concentric rings in the corner. */}
                 <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full border border-white/10" />
                 <div className="pointer-events-none absolute -top-10 -right-10 w-56 h-56 rounded-full border border-white/10" />
 
-                <div className="relative h-full flex flex-col md:flex-row items-center gap-5 md:gap-6 p-5 md:p-8">
+                <div className="relative h-full flex flex-row items-center gap-4 md:gap-6 p-4 md:p-8">
                   <div className="flex-1 min-w-0 text-white">
-                    <span className="text-white/70 text-[11px] md:text-xs font-semibold tracking-[0.3em] uppercase">2024 — 2025</span>
-                    <h3 className="text-2xl md:text-4xl font-medium leading-tight mt-2 mb-3">
+                    <span className="text-white/70 text-[10px] md:text-xs font-semibold tracking-[0.3em] uppercase">2024 — 2025</span>
+                    <h3 className="text-xl md:text-4xl font-medium leading-tight mt-1.5 md:mt-2 mb-2 md:mb-3">
                       Annual <br className="hidden md:block" />Report
                     </h3>
-                    <p className="text-white/75 text-xs md:text-sm font-light leading-relaxed max-w-xs mb-5">
+                    <p className="text-white/75 text-[11px] md:text-sm font-light leading-relaxed max-w-xs mb-3 md:mb-5 line-clamp-2 md:line-clamp-none">
                       A look at the projects, partnerships, and people that shaped our year.
                     </p>
-                    <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 text-white text-xs md:text-sm font-medium group-hover:bg-white group-hover:text-[#17558E] transition-all duration-300">
+                    <span className="inline-flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 text-white text-xs md:text-sm font-medium group-hover:bg-white group-hover:text-[#17558E] transition-all duration-300">
                       Open the report
-                      <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      <ArrowUpRight className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                     </span>
                   </div>
 
@@ -909,7 +928,7 @@ const App: React.FC = () => {
                     <div
                       className="relative overflow-hidden rounded-md bg-slate-100 transition-transform duration-500 ease-out group-hover:-translate-y-2 group-hover:rotate-0"
                       style={{
-                        width: 'clamp(130px, 18vw, 210px)',
+                        width: 'clamp(96px, 22vw, 210px)',
                         aspectRatio: '3 / 4',
                         transform: 'rotate(6deg)',
                         boxShadow: '0 30px 60px -15px rgba(0,0,0,0.45), 0 10px 20px -10px rgba(0,0,0,0.4)',
@@ -927,21 +946,22 @@ const App: React.FC = () => {
                 </div>
               </button>
 
-              {/* --- Right column: 4 equal cards, same total height
-                   as the annual report card (flex-1 each). ---------- */}
-              <div className="md:col-span-5 flex flex-col gap-3 md:gap-3.5">
+              {/* --- Right column: 4 action cards.
+                   Mobile uses a compact 2×2 grid so everything fits
+                   without a nested scroller; desktop stacks them. */}
+              <div className="md:col-span-5 grid grid-cols-2 md:flex md:flex-col gap-2.5 md:gap-3.5">
                 {/* Donate — external link, primary CTA styling. */}
                 <a
                   href={DONATE_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group relative overflow-hidden rounded-2xl px-5 md:px-6 flex-1 min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex items-center justify-between gap-4"
+                  className="group relative overflow-hidden rounded-xl md:rounded-2xl px-3.5 py-3.5 md:px-6 md:py-0 md:flex-1 md:min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex flex-col md:flex-row items-start md:items-center justify-between gap-2 md:gap-4"
                 >
                   <div className="pointer-events-none absolute -right-16 -bottom-16 w-48 h-48 rounded-full opacity-10 group-hover:opacity-20 transition-opacity" style={{ background: 'radial-gradient(circle, #17558E, transparent 70%)' }} />
-                  <h3 className="relative text-slate-800 text-base md:text-lg font-medium leading-tight">Fuel our next project</h3>
-                  <div className="relative shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#17558E] text-white text-sm font-medium group-hover:bg-[#0F3C6B] transition-colors shadow-sm">
+                  <h3 className="relative text-slate-800 text-sm md:text-lg font-medium leading-tight">Fuel our next project</h3>
+                  <div className="relative shrink-0 inline-flex items-center gap-1 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-[#17558E] text-white text-xs md:text-sm font-medium group-hover:bg-[#0F3C6B] transition-colors shadow-sm">
                     Donate
-                    <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    <ArrowUpRight className="w-3.5 h-3.5 md:w-4 md:h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </div>
                 </a>
 
@@ -955,15 +975,15 @@ const App: React.FC = () => {
                     key={label}
                     href={href}
                     {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                    className="group relative overflow-hidden rounded-2xl px-5 md:px-6 flex-1 min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex items-center justify-between gap-4"
+                    className="group relative overflow-hidden rounded-xl md:rounded-2xl px-3.5 py-3.5 md:px-6 md:py-0 md:flex-1 md:min-h-[72px] bg-white border border-slate-200/80 hover:border-[#17558E]/40 hover:shadow-lg transition-all duration-300 annual-report-section flex items-center justify-between gap-2 md:gap-4"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="shrink-0 w-9 h-9 rounded-full bg-[#17558E]/5 flex items-center justify-center text-[#17558E] group-hover:bg-[#17558E] group-hover:text-white transition-colors">
-                        <Icon className="w-4 h-4" />
+                    <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+                      <div className="shrink-0 w-8 h-8 md:w-9 md:h-9 rounded-full bg-[#17558E]/5 flex items-center justify-center text-[#17558E] group-hover:bg-[#17558E] group-hover:text-white transition-colors">
+                        <Icon className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       </div>
                       <div className="text-slate-800 text-sm md:text-base font-medium leading-tight">{label}</div>
                     </div>
-                    <ArrowUpRight className="shrink-0 w-4 h-4 text-slate-400 group-hover:text-[#17558E] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                    <ArrowUpRight className="shrink-0 w-3.5 h-3.5 md:w-4 md:h-4 text-slate-400 group-hover:text-[#17558E] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
                   </a>
                 ))}
               </div>
