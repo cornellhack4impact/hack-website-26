@@ -131,13 +131,21 @@ const App: React.FC = () => {
     { label: 'Business', img: '/business.jpg', rotate: 8, offsetX: '55%', zIndex: 1 },
   ];
 
+  const scrollWindowToTop = () => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    setPageScrolled(false);
+  };
+
   const goToView = (view: SiteView) => {
     if (typeof window === 'undefined') return;
+    scrollWindowToTop();
     const nextHash = view === 'home' ? '#/' : `#/${view}`;
     if (window.location.hash !== nextHash) window.location.hash = nextHash;
     setCurrentView(view);
     setMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    scrollWindowToTop();
   };
 
   /* ----------------------------------------------------------------
@@ -237,10 +245,36 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const onHashChange = () => setCurrentView(resolveViewFromHash());
+    const onHashChange = () => {
+      setCurrentView(resolveViewFromHash());
+      scrollWindowToTop();
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  /* Hash URLs (#/about, #/work, …) are history entries. Mobile Safari
+   * restores the last scroll offset for each one, so switching pages
+   * while at the bottom lands you at the bottom of the next page.
+   * Pin restoration off and snap to top after every view mount. */
+  useEffect(() => {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+  }, []);
+
+  useEffect(() => {
+    scrollWindowToTop();
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      scrollWindowToTop();
+      raf2 = requestAnimationFrame(scrollWindowToTop);
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [currentView]);
 
 
   /* ================================================================
