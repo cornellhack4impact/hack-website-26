@@ -478,13 +478,13 @@ const SponsorsSection: React.FC = () => (
         Thank you to our sponsors
       </div>
       <div className="flex items-center justify-center gap-5 md:gap-8 flex-wrap">
-        {[
+        {([
           { src: 'bloomberg.png', alt: 'Bloomberg', scale: 1 },
-          { src: 'accenture.png', alt: 'Accenture', scale: 1.05 },
+          { src: 'accenture.png', alt: 'Accenture', scale: 1.08, nudgeY: '-20%' },
           { src: 'hrt.png', alt: 'HRT', scale: 0.92 },
           { src: 'roblox.png', alt: 'Roblox', scale: 1 },
           { src: 'verkada.png', alt: 'Verkada', scale: 0.95 },
-        ].map((logo) => (
+        ] as { src: string; alt: string; scale: number; nudgeY?: string }[]).map((logo) => (
           <div
             key={logo.src}
             className="h-9 md:h-11 w-[6.5rem] md:w-[8.5rem] flex items-center justify-center"
@@ -493,7 +493,9 @@ const SponsorsSection: React.FC = () => (
               src={`/logos/${logo.src}`}
               alt={logo.alt}
               className="max-h-full max-w-full object-contain opacity-80"
-              style={{ transform: `scale(${logo.scale})` }}
+              style={{
+                transform: `translateY(${logo.nudgeY ?? '0'}) scale(${logo.scale})`,
+              }}
               onError={(e) => {
                 (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
