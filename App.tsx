@@ -87,8 +87,11 @@ const App: React.FC = () => {
    *   scrollPhase3    → Who We Are → Projects
    *   scrollPhase4    → Projects → Get Involved
    * ================================================================ */
+  const HOME_HOLD_VH = 1;
+  const HOME_TRANSITION_VH = 1.5;
+  const HOME_STRIDE_VH = HOME_HOLD_VH + HOME_TRANSITION_VH;
   const [scrollProgress, scrollPhase2, scrollPhase3, scrollPhase4] =
-    useScrollPhases(4);
+    useScrollPhases(4, HOME_HOLD_VH, HOME_TRANSITION_VH);
 
   /* UI state unrelated to scroll */
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -139,8 +142,8 @@ const App: React.FC = () => {
 
   /* ----------------------------------------------------------------
    * Track viewport size so the hero copy band and globe offset can
-   * adapt — mobile raises the globe into frame; short screens tighten
-   * spacing so headlines never collide with the sphere.
+   * adapt — mobile keeps the globe in the lower half so headlines
+   * never collide with the sphere.
    * ---------------------------------------------------------------- */
   useEffect(() => {
     const update = () => {
@@ -250,17 +253,17 @@ const App: React.FC = () => {
 
   // Globe translateY (vh): starts low under the hero text, slides up
   // to sit centered behind the compact header as phase 1 completes.
-  // Mobile keeps more of the sphere in-frame so the landing view
-  // isn't a huge empty band between the CTA and the crest.
+  // Mobile keeps the sphere in the lower half so headlines never
+  // paint on top of the globe.
   const isMobileViewport = viewport.width < 768;
   const isShortViewport = viewport.height < 780;
   const isVeryShortViewport = viewport.height < 700;
   const globeStartY = isMobileViewport
     ? isVeryShortViewport
-      ? 34
+      ? 54
       : isShortViewport
-        ? 32
-        : 30
+        ? 52
+        : 50
     : isShortViewport
       ? 46
       : 44;
@@ -291,17 +294,41 @@ const App: React.FC = () => {
   const contentTopPadding = Math.max(navClearance + 16, isShortViewport ? 88 : 112);
   const compactHeaderTop = navClearance + 36;
   // Keep all hero copy inside the upper band above the globe crest.
-  // Mobile band ends lower (smaller bottom inset) so copy sits closer
-  // to the raised globe instead of floating in empty space.
+  // Larger bottom inset = shorter copy band = a hard gap above the
+  // sphere. Mobile is extra conservative so text never overlaps.
   const heroBandBottomVh = isMobileViewport
     ? isVeryShortViewport
-      ? 50
+      ? 58
       : isShortViewport
-        ? 48
-        : 46
+        ? 56
+        : 54
     : isShortViewport
       ? 52
       : 50;
+
+  const scrollToZoomedGlobe = () => {
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    window.scrollTo({
+      top: vh * (HOME_HOLD_VH + HOME_TRANSITION_VH + HOME_HOLD_VH * 0.4),
+      behavior: 'smooth',
+    });
+  };
+  const scrollToWhoWeAre = () => {
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    window.scrollTo({
+      top: vh * (HOME_HOLD_VH + HOME_STRIDE_VH + HOME_TRANSITION_VH),
+      behavior: 'smooth',
+    });
+  };
+  const handleMobileDownArrow = () => {
+    if (scrollProgress < 0.92) {
+      scrollToZoomedGlobe();
+      return;
+    }
+    scrollToWhoWeAre();
+  };
+  const mobileArrowVisible =
+    isMobileViewport && globeContentOpacity > 0.4 && whoWeAreOpacity < 0.35;
 
   // Phase 3 — Who We Are hands off to Projects without overlap.
   const whoWeAreFadeOut = 1 - normalize(scrollPhase3, 0.1, 0.58);
@@ -538,14 +565,36 @@ const App: React.FC = () => {
         className="fixed inset-0 z-10 pointer-events-none"
         style={{ background: HERO_BACKGROUND, visibility: globeContentOpacity <= 0 ? 'hidden' : undefined }}
       >
-        {/* pointer-events-auto lets the user drag to spin the globe. */}
+        {/* Desktop: pointer-events-auto lets the user drag to spin.
+            Mobile: the canvas would steal touch and block page scroll,
+            so the globe is display-only and the down arrow drives
+            the two globe beats. */}
         <div
-          className="absolute inset-0 z-10 will-change-transform flex items-center justify-center pointer-events-auto"
-          style={{ transform: `translateY(${globeTranslateY}vh) scale(${globeScale})`, opacity: globeContentOpacity }}
+          className={`absolute inset-0 z-10 will-change-transform flex items-center justify-center ${
+            isMobileViewport ? 'pointer-events-none' : 'pointer-events-auto'
+          }`}
+          style={{
+            transform: `translateY(${globeTranslateY}vh) scale(${globeScale})`,
+            opacity: globeContentOpacity,
+          }}
         >
-          <CustomGlobe scrollProgress={scrollProgress} />
+          <CustomGlobe scrollProgress={scrollProgress} interactive={!isMobileViewport} />
         </div>
       </div>
+
+      {/* Mobile-only shield: paints the page color over any globe pixels
+          that would otherwise sit behind the hero copy. Fades with the
+          headlines so the zoomed-out globe can fill the screen after. */}
+      {isMobileViewport && (
+        <div
+          className="fixed inset-x-0 top-0 z-[15] pointer-events-none"
+          style={{
+            height: `${100 - heroBandBottomVh + 2}vh`,
+            background: HERO_BACKGROUND,
+            opacity: heroOpacity,
+          }}
+        />
+      )}
 
       {/* ============================================================
           SECTION 1 (compact header) — appears during the second half
@@ -584,7 +633,7 @@ const App: React.FC = () => {
           pointerEvents: heroOpacity <= 0 ? 'none' : 'auto',
         }}
       >
-        <div className={`flex h-full w-full max-w-5xl flex-col items-center min-h-0 ${isMobileViewport ? 'justify-end pb-1' : 'justify-center'}`}>
+        <div className={`flex h-full w-full max-w-5xl flex-col items-center min-h-0 ${isMobileViewport ? 'justify-end pb-3' : 'justify-center'}`}>
           <div className={`shrink-0 ${isMobileViewport || isShortViewport ? 'mb-3' : 'mb-5 md:mb-6'}`}>
             <h1 className="text-[clamp(1.2rem,6.2vw,4rem)] md:text-7xl font-medium text-[#17558E] tracking-wide leading-[1.05] whitespace-nowrap">
               Tech For Social Good.
@@ -616,21 +665,37 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Primary bouncing scroll indicator — visible on load, fades
-          with phase 1. */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: scrollIndicatorOpacity }}>
-        <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center backdrop-blur-sm">
-          <ArrowDown className="w-4 h-4 text-white" />
-        </div>
-      </div>
-
-      {/* Secondary arrow — briefly re-appears once the globe has
-          settled so the user knows to keep scrolling. */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: postGlobeArrowOpacity }}>
-        <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center">
-          <ArrowDown className="w-4 h-4 text-white" />
-        </div>
-      </div>
+      {/* Mobile: tappable down-arrow. First tap lands on the zoomed-out
+          globe; the next tap crossfades into Who We Are. Desktop keeps
+          the decorative bounce arrows. */}
+      {isMobileViewport ? (
+        <button
+          type="button"
+          aria-label={scrollProgress < 0.92 ? 'See the globe' : 'See who we are'}
+          onClick={handleMobileDownArrow}
+          className="fixed left-1/2 -translate-x-1/2 z-30 w-11 h-11 rounded-full border border-slate-300/80 bg-white/75 backdrop-blur-md flex items-center justify-center shadow-sm animate-bounce"
+          style={{
+            bottom: 'calc(1.25rem + env(safe-area-inset-bottom))',
+            opacity: mobileArrowVisible ? 1 : 0,
+            pointerEvents: mobileArrowVisible ? 'auto' : 'none',
+          }}
+        >
+          <ArrowDown className="w-4 h-4 text-slate-700" />
+        </button>
+      ) : (
+        <>
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: scrollIndicatorOpacity }}>
+            <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center backdrop-blur-sm">
+              <ArrowDown className="w-4 h-4 text-white" />
+            </div>
+          </div>
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-20 animate-bounce pointer-events-none" style={{ opacity: postGlobeArrowOpacity }}>
+            <div className="w-10 h-10 rounded-full border border-white/30 flex items-center justify-center">
+              <ArrowDown className="w-4 h-4 text-white" />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ============================================================
           SECTION 3 — WHO WE ARE

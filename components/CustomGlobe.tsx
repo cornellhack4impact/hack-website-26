@@ -38,9 +38,13 @@ const CONNECTIONS = DESTINATIONS.map(dest => ({
 
 interface CustomGlobeProps {
   scrollProgress?: number;
+  interactive?: boolean;
 }
 
-const CustomGlobe: React.FC<CustomGlobeProps> = ({ scrollProgress = 0 }) => {
+const CustomGlobe: React.FC<CustomGlobeProps> = ({
+  scrollProgress = 0,
+  interactive = true,
+}) => {
   const START_ALTITUDE = 1.65;
   const END_ALTITUDE = 2.3;
   const globeEl = useRef<GlobeMethods | undefined>(undefined);
@@ -94,7 +98,9 @@ const CustomGlobe: React.FC<CustomGlobeProps> = ({ scrollProgress = 0 }) => {
     const controls = globeEl.current.controls();
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.6;
-    controls.enableZoom = false; // Explicitly disable zoom on the controls object
+    controls.enableZoom = false;
+    controls.enableRotate = interactive;
+    controls.enablePan = false;
 
     // Intercept wheel events on the canvas in the capture phase so they
     // scroll the page instead of being consumed by OrbitControls.
@@ -107,14 +113,15 @@ const CustomGlobe: React.FC<CustomGlobeProps> = ({ scrollProgress = 0 }) => {
     };
 
     canvas.addEventListener('wheel', handleWheel, true); // capture = true
+    canvas.style.touchAction = interactive ? 'none' : 'pan-y';
 
     return () => {
       canvas.removeEventListener('wheel', handleWheel, true);
     };
-  }, []);
+  }, [interactive]);
 
   return (
-    <div className="cursor-move">
+    <div className={interactive ? 'cursor-move' : 'pointer-events-none'}>
       <Globe
         ref={globeEl}
         width={width}
