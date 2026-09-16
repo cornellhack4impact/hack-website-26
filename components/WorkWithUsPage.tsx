@@ -92,7 +92,7 @@ const TIERS: {
 }[] = [
   {
     name: 'Bronze',
-    price: '$500',
+    price: '$1000',
     accent: '#A0734F',
     benefits: [
       'Access to resume book',
