@@ -92,7 +92,7 @@ const TIERS: {
 }[] = [
   {
     name: 'Bronze',
-    price: '$1000',
+    price: '$1,000',
     accent: '#A0734F',
     benefits: [
       'Access to resume book',
@@ -102,7 +102,7 @@ const TIERS: {
   },
   {
     name: 'Silver',
-    price: '$1,000',
+    price: '$2,000',
     accent: '#8E96A6',
     benefits: [
       'Access to resume book',
@@ -113,7 +113,7 @@ const TIERS: {
   },
   {
     name: 'Gold',
-    price: '$2,000',
+    price: '$3,000',
     accent: '#C8A04C',
     highlight: true,
     benefits: [
@@ -126,7 +126,7 @@ const TIERS: {
   },
   {
     name: 'Platinum',
-    price: '$3,000',
+    price: '$5,000',
     accent: '#17558E',
     benefits: [
       'Access to resume book',
