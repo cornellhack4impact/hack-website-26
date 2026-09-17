@@ -24,7 +24,7 @@ export const CROWDFUNDING_URL = DONATE_URL;
 /* PDF in Drive — sent to prospective sponsors so they can review the
  * tier breakdown and benefits offline. */
 export const SPONSORSHIP_PACKAGE_URL =
-  'https://drive.google.com/file/d/1GiSqP-t34MI-AIj9Ck3xVehzA5MsAGxh/view';
+  'https://drive.google.com/file/d/1xMXUXmCBrwnsvQF6rn5x-0zEbQnXEsHL/view?usp=sharing';
 
 /* Notion page describing what each member role (developer, designer,
  * business) actually does day-to-day. */
